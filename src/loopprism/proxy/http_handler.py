@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import parse_qsl, urlencode
 
 import httpx
@@ -35,6 +35,47 @@ def backend_target(backend_url: str, path: str, query: str = "") -> str:
     if params:
         url += ("&" if "?" in url else "?") + urlencode(params)
     return url
+
+
+def _sse_messages(text: str) -> list[Any]:
+    """JSON payloads of the events in a ``text/event-stream`` body."""
+    messages: list[Any] = []
+    data: list[str] = []
+    for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n") + [""]:
+        if line == "":
+            if data:
+                try:
+                    messages.append(json.loads("\n".join(data)))
+                except json.JSONDecodeError:
+                    pass
+                data = []
+        elif line.startswith("data:"):
+            value = line[5:]
+            data.append(value[1:] if value.startswith(" ") else value)
+    return messages
+
+
+def decode_response(body: bytes, content_type: str, request_id: Any = None) -> Optional[Any]:
+    """The JSON-RPC answer in a backend response, or ``None`` when there is none.
+
+    Streamable HTTP servers may answer with an SSE stream that carries
+    notifications before the response; the response is the message whose
+    ``id`` matches the request (else the last one with a result or error).
+    Bodies that are neither JSON nor SSE (an HTML error page, say) give ``None``.
+    """
+    if not body:
+        return None
+    text = body.decode("utf-8", errors="replace")
+    if "text/event-stream" in (content_type or "").lower():
+        answers = [m for m in _sse_messages(text) if isinstance(m, dict) and ("result" in m or "error" in m)]
+        for m in answers:
+            if request_id is not None and m.get("id") == request_id:
+                return m
+        return answers[-1] if answers else None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None
 
 
 class MCPHttpHandler:
@@ -190,6 +231,29 @@ class MCPHttpHandler:
 
         latency = (time.monotonic() - start) * 1000
 
+        # The backend's answer goes back to the client whatever happens to
+        # the bookkeeping below: a tracing problem must never break a call.
+        try:
+            await self._record_response(
+                response, correlation, parsed, server_name, trace_id, span_id, latency
+            )
+        except Exception:
+            logger.exception("Could not record the response of %s on %s", parsed.method, server_name)
+
+        response.headers["X-LoopPrism-Trace-Id"] = trace_id
+        return response
+
+    async def _record_response(
+        self,
+        response: Response,
+        correlation: Correlation,
+        parsed: ParsedMCPRequest,
+        server_name: str,
+        trace_id: str,
+        span_id: str,
+        latency: float,
+    ) -> None:
+        """Finish the span from the backend's answer (JSON, SSE or anything else)."""
         # initialize has no session header yet; the server assigns one in its
         # response. Bind it so follow-up requests join this run.
         issued_session = response.headers.get("mcp-session-id")
@@ -199,51 +263,26 @@ class MCPHttpHandler:
                 trace_id, session_id=issued_session, correlation_source=SESSION
             )
 
-        # Extract response body for tracing
-        response_body_bytes = b""
-        result_is_error = False
+        body_bytes = getattr(response, "body", b"") or b""
+        answer = decode_response(body_bytes, response.headers.get("content-type", ""), parsed.request_id)
+        meta = MCPProtocol.parse_response(answer, parsed.span_type) if isinstance(answer, dict) else {}
+        result_is_error = bool(meta.pop("result_is_error", False))
+        if response.status_code >= 400:
+            # An HTTP failure (a 404 page, a 502 from a gateway) is an error
+            # even when its body is not a JSON-RPC error.
+            result_is_error = True
+            meta.setdefault("http_status", response.status_code)
 
-        if hasattr(response, "body"):
-            # Standard JSONResponse
-            response_body_bytes = response.body
-        else:
-            # For StreamingResponse, try to read
-            pass
-
-        # Parse response for metadata
-        try:
-            response_body = json.loads(response_body_bytes) if response_body_bytes else {}
-            response_meta = MCPProtocol.parse_response(
-                response_body,
-                parsed.span_type,
-            )
-            result_is_error = response_meta.pop("result_is_error", False)
-        except json.JSONDecodeError:
-            response_meta = {}
-
-        # Finish span
         await self.collector.finish_span(
             span_id=span_id,
             latency_ms=latency,
-            result_content=(
-                json.loads(response_body_bytes) if response_body_bytes else None
-            ),
-            result_size_bytes=len(response_body_bytes) if response_body_bytes else 0,
+            result_content=answer,
+            result_size_bytes=len(body_bytes),
             result_is_error=result_is_error,
             status="error" if result_is_error else "ok",
-            attributes=response_meta,
+            attributes=meta,
         )
-
-        # Finalize trace
         await self.collector.finalize_trace(trace_id)
-
-        # Inject trace ID into response header
-        if isinstance(response, JSONResponse):
-            response.headers["X-LoopPrism-Trace-Id"] = trace_id
-        else:
-            response.headers["X-LoopPrism-Trace-Id"] = trace_id
-
-        return response
 
     # ------------------------------------------------------------------
     # Forwarding
