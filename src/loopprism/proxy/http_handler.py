@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import time
 from typing import Optional
+from urllib.parse import parse_qsl, urlencode
 
 import httpx
 from starlette.requests import Request
@@ -18,6 +19,22 @@ from ..trace.collector import TraceCollector
 from ..trace.correlation import SESSION, Correlation, RunCorrelator
 from ..trace.mcp_semantics import MCPProtocol, ParsedMCPRequest
 from ..utils.logging import logger
+
+
+def backend_target(backend_url: str, path: str, query: str = "") -> str:
+    """Where a request to ``/<server>[/rest][?query]`` goes on the backend.
+
+    The first path segment only picks the backend, so it is dropped:
+    ``/github`` goes to the backend URL itself and ``/github/messages`` to
+    ``<backend>/messages``. The query is kept (the legacy SSE transport puts
+    its session id there), except ``backend``, which only names the backend.
+    """
+    rest = path.strip("/").partition("/")[2]
+    url = backend_url.rstrip("/") + "/" + rest if rest else backend_url
+    params = [(k, v) for k, v in parse_qsl(query, keep_blank_values=True) if k != "backend"]
+    if params:
+        url += ("&" if "?" in url else "?") + urlencode(params)
+    return url
 
 
 class MCPHttpHandler:
@@ -245,12 +262,7 @@ class MCPHttpHandler:
         """
         client = await self._get_client()
 
-        # Build forwarded URL
-        path = request.url.path
-        # Remove the server_name prefix if present
-        # e.g., /github/mcp → /mcp
-        # The backend_url should already include any path prefix
-        url = backend_url.rstrip("/") + "/" + path.lstrip("/")
+        url = backend_target(backend_url, request.url.path, request.url.query)
 
         # Forward headers (exclude host, transfer-encoding)
         headers = {
