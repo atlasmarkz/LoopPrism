@@ -9,7 +9,7 @@ menu bar (macOS) or system tray (Windows).
 
 ### Windows (x64)
 
-1. Download `LoopPrism-<version>-x64.exe` from the [Releases](https://github.com/AMark-CS/LoopPrism/releases/latest) page and run it.
+1. Download `LoopPrism-<version>-x64.exe` from the [Releases](https://github.com/atlasmarkz/LoopPrism/releases/latest) page and run it.
    The installer is a short wizard: you can choose the **install folder**, and whether to install for just
    you (the default, no administrator prompt) or for all users of the PC. LoopPrism starts when it finishes.
    For a scripted install, `LoopPrism-<version>-x64.exe /S /D=C:\Tools\LoopPrism` installs silently into
@@ -22,7 +22,7 @@ menu bar (macOS) or system tray (Windows).
 ### macOS
 
 1. Download `LoopPrism-<version>-arm64.dmg` (Apple Silicon) or `-x64.dmg`
-   (Intel) from the [Releases](https://github.com/AMark-CS/LoopPrism/releases) page.
+   (Intel) from the [Releases](https://github.com/atlasmarkz/LoopPrism/releases) page.
 2. Drag **LoopPrism** into **Applications**.
 3. First launch — the app is not notarized (see below), so macOS blocks it:
    - Right-click (or Control-click) **LoopPrism.app** → **Open** → **Open**, or

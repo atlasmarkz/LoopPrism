@@ -84,10 +84,10 @@ test("only this repository's release downloads are trusted", () => {
   const ok = `https://github.com/${u.REPO}/releases/download/desktop-v1.0.0/x.dmg`;
   assert.equal(u.isTrustedDownload(ok), true);
   for (const bad of [
-    "http://github.com/AMark-CS/LoopPrism/releases/download/x/x.dmg",
-    "https://evil.example/AMark-CS/LoopPrism/releases/download/x/x.dmg",
+    "http://github.com/atlasmarkz/LoopPrism/releases/download/x/x.dmg",
+    "https://evil.example/atlasmarkz/LoopPrism/releases/download/x/x.dmg",
     "https://github.com/other/repo/releases/download/x/x.dmg",
-    "https://github.com.evil.example/AMark-CS/LoopPrism/releases/download/x/x.dmg",
+    "https://github.com.evil.example/atlasmarkz/LoopPrism/releases/download/x/x.dmg",
     "not a url",
   ]) assert.equal(u.isTrustedDownload(bad), false, bad);
 });
