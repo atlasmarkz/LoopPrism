@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, Optional
 from urllib.parse import parse_qsl, urlencode
 
+import anyio
 import httpx
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
@@ -35,6 +37,15 @@ def backend_target(backend_url: str, path: str, query: str = "") -> str:
     if params:
         url += ("&" if "?" in url else "?") + urlencode(params)
     return url
+
+
+# Called once a streamed answer ends: (bytes that passed, error or None).
+StreamEnd = Callable[[bytes, Optional[str]], Awaitable[None]]
+
+
+def is_event_stream(content_type: str) -> bool:
+    """Whether a response is an SSE stream, which is passed on as it arrives."""
+    return (content_type or "").split(";")[0].strip().lower() == "text/event-stream"
 
 
 def _sse_messages(text: str) -> list[Any]:
@@ -215,8 +226,20 @@ class MCPHttpHandler:
 
         # Forward and measure
         start = time.monotonic()
+        response: Optional[Response] = None
+
+        async def stream_ended(body: bytes, error: Optional[str]) -> None:
+            # A streamed answer is recorded once all of it has gone through.
+            assert response is not None
+            await self._finish_span(
+                response, parsed, trace_id, span_id,
+                (time.monotonic() - start) * 1000, body, error,
+            )
+
         try:
-            response = await self._forward(request, backend_url, body_bytes)
+            response = await self._forward(
+                request, backend_url, body_bytes, on_stream_end=stream_ended
+            )
         except Exception as exc:
             latency = (time.monotonic() - start) * 1000
             await self.collector.finish_span(
@@ -234,26 +257,25 @@ class MCPHttpHandler:
         # The backend's answer goes back to the client whatever happens to
         # the bookkeeping below: a tracing problem must never break a call.
         try:
-            await self._record_response(
-                response, correlation, parsed, server_name, trace_id, span_id, latency
-            )
+            await self._bind_issued_session(response, correlation, server_name, trace_id)
+            if not isinstance(response, StreamingResponse):
+                await self._finish_span(
+                    response, parsed, trace_id, span_id, latency, response.body
+                )
         except Exception:
             logger.exception("Could not record the response of %s on %s", parsed.method, server_name)
 
         response.headers["X-LoopPrism-Trace-Id"] = trace_id
         return response
 
-    async def _record_response(
+    async def _bind_issued_session(
         self,
         response: Response,
         correlation: Correlation,
-        parsed: ParsedMCPRequest,
         server_name: str,
         trace_id: str,
-        span_id: str,
-        latency: float,
     ) -> None:
-        """Finish the span from the backend's answer (JSON, SSE or anything else)."""
+        """Join follow-up requests to this run once the server names a session."""
         # initialize has no session header yet; the server assigns one in its
         # response. Bind it so follow-up requests join this run.
         issued_session = response.headers.get("mcp-session-id")
@@ -263,7 +285,21 @@ class MCPHttpHandler:
                 trace_id, session_id=issued_session, correlation_source=SESSION
             )
 
-        body_bytes = getattr(response, "body", b"") or b""
+    async def _finish_span(
+        self,
+        response: Response,
+        parsed: ParsedMCPRequest,
+        trace_id: str,
+        span_id: str,
+        latency: float,
+        body_bytes: bytes,
+        error: Optional[str] = None,
+    ) -> None:
+        """Finish the span from the backend's answer (JSON, SSE or anything else).
+
+        ``error`` is set when a streamed answer broke off before its end.
+        """
+        body_bytes = body_bytes or b""
         answer = decode_response(body_bytes, response.headers.get("content-type", ""), parsed.request_id)
         meta = MCPProtocol.parse_response(answer, parsed.span_type) if isinstance(answer, dict) else {}
         result_is_error = bool(meta.pop("result_is_error", False))
@@ -272,6 +308,11 @@ class MCPHttpHandler:
             # even when its body is not a JSON-RPC error.
             result_is_error = True
             meta.setdefault("http_status", response.status_code)
+        if error and answer is None:
+            # The stream broke off before the answer came. Once the answer is
+            # in, a dropped connection afterwards changes nothing.
+            result_is_error = True
+            meta.setdefault("error", error)
 
         await self.collector.finish_span(
             span_id=span_id,
@@ -293,11 +334,14 @@ class MCPHttpHandler:
         request: Request,
         backend_url: str,
         body_bytes: bytes,
+        on_stream_end: Optional[StreamEnd] = None,
     ) -> Response:
         """Forward a request to the backend MCP server.
 
-        Copies method, headers (except host), and body.
-        Returns a JSONResponse or StreamingResponse.
+        Copies method, headers (except host), and body. An SSE answer comes
+        back as a StreamingResponse that relays events as they arrive, and
+        ``on_stream_end`` gets its bytes once it ends. Anything else is read
+        whole and returned as a Response.
         """
         client = await self._get_client()
 
@@ -311,26 +355,16 @@ class MCPHttpHandler:
             not in ("host", "transfer-encoding", "content-length")
         }
 
+        backend_req = client.build_request(
+            method=request.method,
+            url=url,
+            headers=headers,
+            content=body_bytes or None,
+        )
         try:
-            backend_resp = await client.request(
-                method=request.method,
-                url=url,
-                headers=headers,
-                content=body_bytes or None,
-            )
+            backend_resp = await client.send(backend_req, stream=True)
         except httpx.RequestError as exc:
-            logger.error("Backend request failed: %s → %s: %s", request.method, url, exc)
-            return JSONResponse(
-                content={
-                    "jsonrpc": "2.0",
-                    "error": {
-                        "code": -32603,
-                        "message": f"Backend unreachable: {exc}",
-                    },
-                    "id": None,
-                },
-                status_code=502,
-            )
+            return self._unreachable(request.method, url, exc)
 
         # Build response
         response_headers = {
@@ -344,12 +378,88 @@ class MCPHttpHandler:
             "application/json",
         )
 
+        if is_event_stream(content_type):
+            # Pass the stream on as it arrives: a GET event stream may stay
+            # open for as long as the session lasts, with quiet spells longer
+            # than the read timeout. httpcore takes the read timeout when the
+            # body starts (after this), so it is lifted for this response.
+            sent = backend_resp.request  # the last one, after any redirect
+            sent.extensions["timeout"] = {**sent.extensions.get("timeout", {}), "read": None}
+            response_headers.pop("content-length", None)
+            return StreamingResponse(
+                self._relay(backend_resp, on_stream_end),
+                status_code=backend_resp.status_code,
+                headers=response_headers,
+                media_type=content_type,
+            )
+
+        try:
+            content = await backend_resp.aread()
+        except httpx.RequestError as exc:
+            return self._unreachable(request.method, url, exc)
+        finally:
+            await backend_resp.aclose()
+
         return Response(
-            content=backend_resp.content,
+            content=content,
             status_code=backend_resp.status_code,
             headers=response_headers,
             media_type=content_type,
         )
+
+    @staticmethod
+    def _unreachable(method: str, url: str, exc: Exception) -> JSONResponse:
+        logger.error("Backend request failed: %s → %s: %s", method, url, exc)
+        return JSONResponse(
+            content={
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -32603,
+                    "message": f"Backend unreachable: {exc}",
+                },
+                "id": None,
+            },
+            status_code=502,
+        )
+
+    @staticmethod
+    async def _relay(
+        backend_resp: httpx.Response,
+        on_end: Optional[StreamEnd],
+    ) -> AsyncIterator[bytes]:
+        """Yield an SSE body chunk by chunk, then close it and report it.
+
+        Runs until the backend ends the stream or the client goes away (the
+        generator is then cancelled or closed). The bytes are kept only when
+        someone wants them at the end (a traced call).
+        """
+        collected = bytearray()
+        error: Optional[str] = None
+        try:
+            async for chunk in backend_resp.aiter_bytes():
+                if on_end is not None:
+                    collected += chunk
+                yield chunk
+        except httpx.HTTPError as exc:
+            # The backend dropped the stream: end ours cleanly rather than
+            # failing the response half-way through.
+            error = f"stream broke off: {exc!r}"
+            logger.warning("Backend event stream ended early: %r", exc)
+        except BaseException:
+            # Cancelled or closed: the client went away mid-stream.
+            error = "client disconnected before the stream ended"
+            raise
+        finally:
+            # Also runs when the client disconnects, as a cancellation, so it
+            # is shielded: the upstream connection must be released and the
+            # span finished either way.
+            with anyio.CancelScope(shield=True):
+                await backend_resp.aclose()
+                if on_end is not None:
+                    try:
+                        await on_end(bytes(collected), error)
+                    except Exception:
+                        logger.exception("Could not record a streamed response")
 
     # ------------------------------------------------------------------
     # Helpers
