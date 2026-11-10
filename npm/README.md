@@ -106,7 +106,7 @@ WorkBuddy in `~/.workbuddy/settings.json`, OpenCode a plugin file in `~/.config/
 - **OpenCode:** restart it after `lpa install` so it loads the plugin. Uninstall removes only the file LoopPrism wrote.
 - **WorkBuddy:** restart it after `lpa install` so it reads the hooks. They run `node`, so Node.js must be on the PATH WorkBuddy uses.
 - **Claude Code without npm:** `/plugin marketplace add atlasmarkz/LoopPrism`, then `/plugin install loopprism@loopprism`.
-- **It never slows your agent.** The hook gives up after one second, backs off for ten seconds after a failure, always exits 0, and does nothing when LoopPrism is not running.
+- **It never slows your agent.** The hook gives up after one second (`LOOPPRISM_HOOK_TIMEOUT_MS` changes that) and always exits 0. When LoopPrism is not reachable, or times out twice in a row, the hooks skip sending for ten seconds; a single slow answer does not pause recording. Set `LOOPPRISM_DEBUG=1` to see why an event was not sent.
 - **Privacy:** events go only to your own LoopPrism (`http://127.0.0.1:8080`; set `LOOPPRISM_URL` or `lpa install --url ...` to change it). Set `LOOPPRISM_NO_PROMPTS=1` to keep prompt text out of the recorded runs. Long tool inputs and outputs are cut before they are sent. Set `LOOPPRISM_DISABLE=1` to turn the hooks off.
 - **What a run is:** one user prompt up to the agent's `Stop`. A run still open when the next prompt or the session end arrives is marked `abandoned`.
 
