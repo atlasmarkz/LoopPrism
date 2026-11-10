@@ -200,6 +200,36 @@ pip install "git+https://github.com/atlasmarkz/LoopPrism.git"   # or: uv tool in
 lprism proxy                                                    # then open http://localhost:8080
 ```
 
+### Record MCP tool calls through the proxy
+
+`lprism proxy` (and the desktop app) runs an MCP proxy on port 4317. To record an HTTP MCP
+server's tool calls, give your MCP client the proxy's address instead of the server's:
+
+```text
+http://127.0.0.1:4317/<name>?backend=<server url>
+```
+
+- `<name>` only labels the server in the dashboard; it is not sent to the server.
+- `<server url>` is the server's full endpoint, path included, for example `http://localhost:3000/mcp`.
+  URL-encode it if it contains `?` or `&`. Anything after `/<name>/` and any other query parameters
+  are passed on to the server, and so are your headers (such as `Authorization`).
+- A client that can set headers can use `http://127.0.0.1:4317/<name>` with the header
+  `X-LoopPrism-Backend: <server url>` instead.
+- It works with Streamable HTTP servers. It does not proxy stdio servers or the older HTTP+SSE transport,
+  whose long-lived event stream it cannot pass through.
+- The proxy and the dashboard only answer requests from this machine; a web page from another site
+  gets `403`.
+
+For example, in Claude Code:
+
+```bash
+claude mcp add --transport http myserver "http://127.0.0.1:4317/myserver?backend=http://localhost:3000/mcp"
+```
+
+> **Upgrading from an earlier version:** the `<name>` segment used to be appended to the backend URL,
+> so `…/mcp?backend=http://localhost:3000` reached `http://localhost:3000/mcp`. It is now a label
+> only. Put the full endpoint in `backend` (`…/myserver?backend=http://localhost:3000/mcp`).
+
 ### Live runs from Claude Code, Codex and WorkBuddy
 
 Sessions are read after the fact. To also watch an agent **as it works**:

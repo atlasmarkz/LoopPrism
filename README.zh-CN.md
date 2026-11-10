@@ -104,6 +104,32 @@ pip install "git+https://github.com/atlasmarkz/LoopPrism.git"
 lprism proxy        # 然后打开 http://localhost:8080
 ```
 
+### 通过代理记录 MCP 工具调用
+
+`lprism proxy`（以及桌面应用）会在 4317 端口运行一个 MCP 代理。要记录某个 HTTP MCP 服务器的工具调用，
+在 MCP 客户端里填代理的地址，而不是服务器本身的地址：
+
+```text
+http://127.0.0.1:4317/<名称>?backend=<服务器地址>
+```
+
+- `<名称>` 只是在仪表盘里标识这个服务器，不会发给服务器。
+- `<服务器地址>` 是服务器的完整端点，包括路径，例如 `http://localhost:3000/mcp`。地址里有 `?` 或 `&` 时需要做 URL 编码。
+  `/<名称>/` 之后的路径、其他查询参数，以及请求头（如 `Authorization`）都会原样转给服务器。
+- 能设置请求头的客户端，也可以用 `http://127.0.0.1:4317/<名称>`，再加请求头 `X-LoopPrism-Backend: <服务器地址>`。
+- 支持 Streamable HTTP 服务器。stdio 服务器和旧的 HTTP+SSE 传输方式不支持，因为代理无法透传后者那条长连接的事件流。
+- 代理和仪表盘只响应本机发出的请求；其他网站的网页访问会得到 `403`。
+
+例如在 Claude Code 中：
+
+```bash
+claude mcp add --transport http myserver "http://127.0.0.1:4317/myserver?backend=http://localhost:3000/mcp"
+```
+
+> **从旧版本升级：** 以前 `<名称>` 这一段会被拼到后端地址后面，所以 `…/mcp?backend=http://localhost:3000`
+> 实际访问的是 `http://localhost:3000/mcp`。现在它只是一个标签，请把完整端点写进 `backend`
+> （`…/myserver?backend=http://localhost:3000/mcp`）。
+
 ### 为 Claude Code、Codex、Gemini CLI、Cursor、WorkBuddy、OpenCode、DeepSeek Harness 开启实时运行
 
 ```bash
