@@ -53,8 +53,11 @@ menu bar (macOS) or system tray (Windows).
 - On Windows the **Resume** button in Sessions opens a new console window, and **Delete** sends the
   session to the Recycle Bin.
 
-- Point your MCP clients at `http://127.0.0.1:4317/<server-name>`. The menu bar
-  icon has **Copy proxy URL** with the exact address.
+- Point an HTTP MCP client at `http://127.0.0.1:4317/<name>?backend=<server url>`,
+  where `<server url>` is the server's full endpoint (for example
+  `http://localhost:3000/mcp`) and `<name>` only labels it in the dashboard. The
+  Apps page builds this URL; the menu bar icon has **Copy proxy URL** with the
+  proxy's exact address. See [Record MCP tool calls through the proxy](../README.md#record-mcp-tool-calls-through-the-proxy).
 - If 4317 (proxy) or 8080 (dashboard) is taken, the app picks free ports; the
   menu bar menu always shows the real proxy URL.
 - Closing the window keeps the proxy running; **Open dashboard** reopens it.
