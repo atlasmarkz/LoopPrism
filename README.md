@@ -215,8 +215,9 @@ http://127.0.0.1:4317/<name>?backend=<server url>
   are passed on to the server, and so are your headers (such as `Authorization`).
 - A client that can set headers can use `http://127.0.0.1:4317/<name>` with the header
   `X-LoopPrism-Backend: <server url>` instead.
-- It works with Streamable HTTP servers. It does not proxy stdio servers or the older HTTP+SSE transport,
-  whose long-lived event stream it cannot pass through.
+- It works with Streamable HTTP servers, including answers streamed as server-sent events. It does not
+  proxy stdio servers or the older HTTP+SSE transport: there the server tells the client to post its
+  messages to an absolute path (`/messages/…`), which bypasses `/<name>` on the proxy.
 - The proxy and the dashboard only answer requests from this machine; a web page from another site
   gets `403`.
 
