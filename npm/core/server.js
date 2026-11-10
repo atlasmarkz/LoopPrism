@@ -29,9 +29,17 @@ const TYPES = {
   '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json', '.woff2': 'font/woff2',
 };
 
-/** The built dashboard: shipped in the package, or the repository's own build. */
+/**
+ * The built dashboard: shipped in the package (copied in when publishing), else in a checkout the
+ * build committed for pip users (src/loopprism/dashboard/dist), else a local `npm run build`.
+ */
 function dashboardDir(root = path.resolve(__dirname, '..')) {
-  for (const d of [path.join(root, 'dashboard'), path.join(root, '..', 'dashboard', 'dist')]) {
+  const candidates = [
+    path.join(root, 'dashboard'),
+    path.join(root, '..', 'src', 'loopprism', 'dashboard', 'dist'),
+    path.join(root, '..', 'dashboard', 'dist'),
+  ];
+  for (const d of candidates) {
     if (fs.existsSync(path.join(d, 'index.html'))) return d;
   }
   return null;

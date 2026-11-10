@@ -78,7 +78,8 @@ function shellCommand(l) {
 
 /** The skill text with `npx -y loopprism` replaced by the installed copy. */
 function skillText(l) {
-  const src = fs.readFileSync(path.join(packageRoot, 'plugin', 'skills', NAME, 'SKILL.md'), 'utf8');
+  // LF line ends whatever the checkout did (git on Windows may hand us CRLF).
+  const src = fs.readFileSync(path.join(packageRoot, 'plugin', 'skills', NAME, 'SKILL.md'), 'utf8').replace(/\r\n/g, '\n');
   return src.split(NPX).join(shellCommand(l));
 }
 
