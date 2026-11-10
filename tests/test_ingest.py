@@ -10,7 +10,7 @@ from loopprism.trace.ingest import split_mcp_tool, truncate
 @pytest.fixture
 async def api(collector):
     app = create_app(collector=collector, dashboard_enabled=False)
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://127.0.0.1") as c:
         yield c
 
 
