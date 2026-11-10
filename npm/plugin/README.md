@@ -52,9 +52,11 @@ request, and never changes Claude Code's permission settings.
 | `LOOPPRISM_NO_PROMPTS=1` | keep your prompt text out of the events |
 | `LOOPPRISM_URL` | send events to a different LoopPrism address |
 | `LOOPPRISM_DEBUG=1` | print problems to stderr |
+| `LOOPPRISM_HOOK_TIMEOUT_MS` | how long the hook waits for LoopPrism (default 1000) |
 
-The hook gives up after one second, backs off for ten seconds after a failure, and always
-exits successfully, so it cannot block or fail your session.
+The hook gives up after one second and always exits successfully, so it cannot block or fail
+your session. When LoopPrism is not reachable, or times out twice in a row, the hooks skip
+sending for ten seconds; a single slow answer does not pause recording.
 
 ## Install
 

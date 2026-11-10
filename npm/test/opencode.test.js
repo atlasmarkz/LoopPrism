@@ -187,3 +187,27 @@ test('hook.js understands Cursor events and answers beforeSubmitPrompt with cont
   });
   assert.equal(r.stdout, '{"continue":true}');
 });
+
+test('the plugin keeps sending after an HTTP error (#8)', async () => {
+  const received = [];
+  const server = http.createServer((req, res) => {
+    received.push(req.url);
+    req.resume();
+    req.on('end', () => {
+      res.statusCode = 500;
+      res.end('{}');
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  process.env.LOOPPRISM_URL = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const mod = await import(pathToFileURL(path.join(__dirname, '..', 'plugin', 'opencode', 'loopprism.js')).href + '?http500');
+    const hooks = await mod.LoopPrismPlugin({ directory: '/x' });
+    await hooks['chat.message']({ sessionID: 's' }, { parts: [] });
+    await hooks['chat.message']({ sessionID: 's' }, { parts: [] });
+  } finally {
+    delete process.env.LOOPPRISM_URL;
+    server.close();
+  }
+  assert.equal(received.length, 2);
+});

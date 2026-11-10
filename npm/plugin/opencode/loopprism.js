@@ -1,7 +1,8 @@
 // loopprism-opencode-plugin
 // LoopPrism plugin for OpenCode: reports prompts, tool calls and the end of each turn to the local
 // LoopPrism API, so they show up as live runs. It never gets in OpenCode's way: every request has a
-// one second limit, errors are swallowed, and after a failure nothing is sent for ten seconds.
+// one second limit and errors are swallowed. When LoopPrism is unreachable (or times out twice in a
+// row) nothing is sent for ten seconds; one slow answer or an HTTP error does not pause recording.
 //
 // Installed to ~/.config/opencode/plugins/ by `lpa install opencode` or the LoopPrism desktop app.
 // Environment: LOOPPRISM_URL (default: ~/.loopprism/agent.json, else http://127.0.0.1:8080),
@@ -41,19 +42,23 @@ function clip(value, depth = 0) {
 }
 
 let quietUntil = 0;
+let slowAt = 0; // when the last request timed out; a second timeout soon after starts the quiet time
 async function send(event) {
   if (process.env.LOOPPRISM_DISABLE === "1" || Date.now() < quietUntil) return;
   try {
-    const res = await fetch(`${baseUrl()}/api/ingest/events`, {
+    await fetch(`${baseUrl()}/api/ingest/events`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ events: [{ agent: AGENT, ...event }] }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  } catch {
-    quietUntil = Date.now() + BACKOFF_MS;
+  } catch (err) {
+    const now = Date.now();
+    if (err && err.name === "TimeoutError" && now - slowAt >= BACKOFF_MS) slowAt = now; // one slow answer
+    else quietUntil = now + BACKOFF_MS; // unreachable, or hung
+    return;
   }
+  slowAt = 0; // answered (even with an HTTP error): LoopPrism is running
 }
 
 export const LoopPrismPlugin = async ({ directory }) => {

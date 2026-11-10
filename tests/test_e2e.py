@@ -241,7 +241,7 @@ HOOK = Path(__file__).resolve().parent.parent / "npm" / "plugin" / "scripts" / "
 needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
 
 
-def run_hook(api_url, payload, agent, tmp_path):
+def run_hook(api_url, payload, agent, tmp_path, *, server_up=True):
     """Run the real hook script exactly as Claude Code / Codex would."""
     r = subprocess.run(
         ["node", str(HOOK), "--agent", agent],
@@ -249,9 +249,21 @@ def run_hook(api_url, payload, agent, tmp_path):
         capture_output=True,
         text=True,
         timeout=15,
-        env={**os.environ, "LOOPPRISM_URL": api_url, "TMPDIR": str(tmp_path), "TEMP": str(tmp_path), "TMP": str(tmp_path)},
+        env={
+            **os.environ,
+            "LOOPPRISM_URL": api_url,
+            "TMPDIR": str(tmp_path),
+            "TEMP": str(tmp_path),
+            "TMP": str(tmp_path),
+            # This test is about recording a whole run, not about the 1 s budget
+            # (#8): a busy CI runner may be slow, and any problem must be visible.
+            "LOOPPRISM_HOOK_TIMEOUT_MS": "10000",
+            "LOOPPRISM_DEBUG": "1",
+        },
     )
     assert (r.returncode, r.stdout) == (0, "{}"), r.stderr
+    if server_up:
+        assert r.stderr == "", r.stderr  # with LOOPPRISM_DEBUG=1 every lost event shows here
     return r
 
 
@@ -294,7 +306,9 @@ def test_agent_hooks_record_a_whole_run(stack, client, tmp_path, agent):
 
 @needs_node
 def test_hook_does_nothing_and_does_not_fail_when_server_is_down(tmp_path):
-    run_hook(f"http://127.0.0.1:{free_port()}", {"session_id": "x", "hook_event_name": "Stop"}, "codex", tmp_path)
+    r = run_hook(f"http://127.0.0.1:{free_port()}", {"session_id": "x", "hook_event_name": "Stop"}, "codex", tmp_path,
+                 server_up=False)
+    assert "loopprism hook:" in r.stderr
 
 
 def test_ingest_refuses_browser_origin(stack):

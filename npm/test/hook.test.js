@@ -130,3 +130,56 @@ test('injected notifications are not sent as if the user typed them', () => {
   const real = buildEvent({ session_id: 's', hook_event_name: 'UserPromptSubmit', prompt: 'use <b> tags in the html' }, 'x', {});
   assert.equal(real.prompt, 'use <b> tags in the html');
 });
+
+// #8: one slow answer or an HTTP error must not pause recording; only an unreachable or hung
+// LoopPrism does.
+function slowServer(delayMs) {
+  const received = [];
+  const server = http.createServer((req, res) => {
+    received.push(req.url);
+    req.resume();
+    req.on('end', () => setTimeout(() => res.end('{}'), delayMs()));
+  });
+  return new Promise((resolve) =>
+    server.listen(0, '127.0.0.1', () => resolve({ server, received, url: `http://127.0.0.1:${server.address().port}` })),
+  );
+}
+
+test('shouldBackOff: unreachable yes, HTTP error no, a timeout only the second time', () => {
+  const { HttpError, shouldBackOff } = require('../plugin/scripts/hook');
+  const timeout = Object.assign(new Error('timed out'), { name: 'TimeoutError' });
+  assert.equal(shouldBackOff(new TypeError('fetch failed'), false), true);
+  assert.equal(shouldBackOff(new HttpError('HTTP 500'), false), false);
+  assert.equal(shouldBackOff(timeout, false), false);
+  assert.equal(shouldBackOff(timeout, true), true);
+});
+
+test('one slow answer does not pause recording', async () => {
+  let calls = 0;
+  const { server, received, url } = await slowServer(() => (calls++ === 0 ? 1500 : 0));
+  const env = isolated({ LOOPPRISM_URL: url, LOOPPRISM_HOOK_TIMEOUT_MS: '300' });
+  const payload = { session_id: 's', hook_event_name: 'Stop' };
+  for (let i = 0; i < 3; i++) assert.equal((await runHook(payload, env)).code, 0);
+  server.close();
+  assert.equal(received.length, 3);
+});
+
+test('a hung server is backed off after the second timeout', async () => {
+  const { server, received, url } = await slowServer(() => 1500);
+  const env = isolated({ LOOPPRISM_URL: url, LOOPPRISM_HOOK_TIMEOUT_MS: '200' });
+  const payload = { session_id: 's', hook_event_name: 'Stop' };
+  for (let i = 0; i < 4; i++) assert.equal((await runHook(payload, env)).code, 0);
+  server.closeAllConnections();
+  server.close();
+  assert.equal(received.length, 2);
+});
+
+test('an HTTP error does not pause recording', async () => {
+  const { server, received, url } = await fakeServer(500);
+  const env = isolated({ LOOPPRISM_URL: url });
+  const payload = { session_id: 's', hook_event_name: 'Stop' };
+  await runHook(payload, env);
+  await runHook(payload, env);
+  server.close();
+  assert.equal(received.length, 2);
+});
