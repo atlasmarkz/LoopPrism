@@ -34,7 +34,13 @@ def mock_backend():
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
             length = int(self.headers.get("Content-Length", 0))
-            body = json.loads(self.rfile.read(length) or b"{}")
+            raw = self.rfile.read(length)
+            if self.path != "/mcp":
+                # Like real Streamable HTTP servers: one endpoint, nothing else.
+                self.send_response(404)
+                self.end_headers()
+                return
+            body = json.loads(raw or b"{}")
             method = body.get("method")
             headers = {}
             if method == "tools/call":
@@ -62,7 +68,7 @@ def mock_backend():
 
     server = HTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    yield f"http://127.0.0.1:{server.server_address[1]}"
+    yield f"http://127.0.0.1:{server.server_address[1]}/mcp"
     server.shutdown()
 
 
