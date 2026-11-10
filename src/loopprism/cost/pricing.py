@@ -91,6 +91,8 @@ _FABLE_51 = _claude(10, 50, 12.5, 20, 0.25)
 
 # Newest first: a loose name like "claude-opus" resolves to the newest match.
 _ANTHROPIC: dict[str, ModelPricing] = {
+    "claude-fable-5-2": _claude(8, 40, 10, 16, 0.2),
+    "claude-mythos-5-2": _claude(8, 40, 10, 16, 0.2),
     "claude-fable-5-1": _FABLE_51,
     "claude-mythos-5-1": _FABLE_51,
     "claude-fable-5": _FABLE_5,
