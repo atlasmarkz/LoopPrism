@@ -26,6 +26,7 @@ from starlette.routing import Route
 
 from ..trace.collector import TraceCollector
 from ..trace.correlation import DEFAULT_IDLE_SECONDS, RunCorrelator
+from ..utils.local_only import foreign_request
 from ..utils.logging import logger
 from .http_handler import MCPHttpHandler
 
@@ -145,10 +146,9 @@ class ProxyServer:
 
         app = Starlette(routes=routes)
 
-        # Add CORS middleware for dashboard
         app.add_middleware(
             BaseHTTPMiddleware,
-            dispatch=self._cors_middleware,
+            dispatch=self._local_only_middleware,
         )
 
         return app
@@ -244,16 +244,30 @@ class ProxyServer:
     # Middleware
     # ------------------------------------------------------------------
 
-    async def _cors_middleware(
+    async def _local_only_middleware(
         self,
         request: Request,
         call_next,
     ) -> Response:
-        """Add CORS headers for dashboard access."""
+        """Serve only this machine; let local browser tools read the answers.
+
+        The proxy forwards to whatever backend a request names
+        (``?backend=``/``X-LoopPrism-Backend``), so a request from another web
+        page would turn it into a relay into the user's network. Those are
+        refused before anything is forwarded. Browser pages on this machine
+        (another localhost port) may still use it, and get their own origin
+        back instead of ``*``.
+        """
+        reason = foreign_request(request.headers, loopback_origins=True)
+        if reason:
+            return JSONResponse({"error": reason}, status_code=403)
         response = await call_next(request)
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "*"
-        response.headers["Access-Control-Allow-Headers"] = "*"
+        origin = request.headers.get("origin")
+        if origin:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Methods"] = "*"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            response.headers["Vary"] = "Origin"
         return response
 
     # ------------------------------------------------------------------

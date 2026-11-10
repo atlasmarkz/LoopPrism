@@ -5,13 +5,14 @@ from __future__ import annotations
 import json
 from typing import Any, Optional
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from ..cost.attribution import CostBreakdown, attribute
 from ..cost.pricing import PRICING_AS_OF, PRICING_SOURCES, usage_cost_parts
 from ..trace.collector import TraceCollector
+from .deps import local_only
 
-router = APIRouter(tags=["cost"])
+router = APIRouter(tags=["cost"], dependencies=[Depends(local_only)])
 
 TYPE_LABELS = {
     "input": "Uncached input",

@@ -5,9 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-router = APIRouter(tags=["traces"])
+from .deps import local_only
+
+router = APIRouter(tags=["traces"], dependencies=[Depends(local_only)])
 
 
 @router.get("/traces")

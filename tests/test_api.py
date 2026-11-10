@@ -13,7 +13,7 @@ async def api_client(collector):
     transport = ASGITransport(app=app)
     async with AsyncClient(
         transport=transport,
-        base_url="http://test",
+        base_url="http://127.0.0.1",
     ) as client:
         yield client
 

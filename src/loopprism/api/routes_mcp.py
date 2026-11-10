@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 
-router = APIRouter(tags=["mcp"])
+from .deps import local_only
+
+router = APIRouter(tags=["mcp"], dependencies=[Depends(local_only)])
 
 
 @router.get("/mcp-servers")

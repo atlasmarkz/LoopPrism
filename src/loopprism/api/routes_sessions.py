@@ -11,27 +11,14 @@ from __future__ import annotations
 import asyncio
 import os
 from typing import Any, Optional
-from urllib.parse import urlparse
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 
+from .deps import local_only
 from ..sessions import actions, agents, analysis, context
 from ..sessions.store import READ_ONLY_AGENTS
 from ..sessions import models as M
 from ..sessions.store import SessionStore
-
-LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
-
-
-def local_only(request: Request) -> None:
-    host_header = request.headers.get("host") or ""
-    if urlparse(f"//{host_header}").hostname not in LOOPBACK_HOSTS:
-        raise HTTPException(status_code=403, detail="Sessions are only available on this machine")
-    origin = request.headers.get("origin")
-    if origin and urlparse(origin).netloc != host_header:
-        raise HTTPException(status_code=403, detail="Cross-origin requests are not accepted")
-
 
 router = APIRouter(prefix="/sessions", tags=["sessions"], dependencies=[Depends(local_only)])
 
