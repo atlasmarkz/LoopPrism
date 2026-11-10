@@ -4,14 +4,17 @@
 //
 // Reads one hook event as JSON on stdin and forwards it to the LoopPrism API.
 // It must never get in the agent's way: it always prints `{}`, always exits 0,
-// gives up after one second, and skips sending for a few seconds after a
-// failure so a stopped server does not slow every tool call.
+// gives up after one second, and skips sending for a few seconds when
+// LoopPrism is unreachable (or timed out twice in a row) so a stopped or hung
+// server does not slow every tool call. A single slow answer or an HTTP error
+// does not pause recording: the server is there, the next event may get through.
 //
 //   node hook.js --agent claude-code|codex
 //
 // Environment: LOOPPRISM_URL (default http://127.0.0.1:8080),
 // LOOPPRISM_DISABLE=1, LOOPPRISM_NO_PROMPTS=1 (do not send prompt text),
-// LOOPPRISM_DEBUG=1 (print problems to stderr).
+// LOOPPRISM_DEBUG=1 (print problems to stderr),
+// LOOPPRISM_HOOK_TIMEOUT_MS (how long to wait for LoopPrism, default 1000).
 
 const fs = require('fs');
 const os = require('os');
@@ -109,6 +112,44 @@ function inBackoff(now = Date.now()) {
   }
 }
 
+// A timeout leaves this mark; a second one while it is fresh starts the back-off.
+function slowFile() {
+  return path.join(os.tmpdir(), 'loopprism-hook-slow');
+}
+
+function recentlySlow(now = Date.now()) {
+  try {
+    return now - fs.statSync(slowFile()).mtimeMs < BACKOFF_MS;
+  } catch {
+    return false;
+  }
+}
+
+function markSlow() {
+  try {
+    fs.writeFileSync(slowFile(), String(Date.now()));
+  } catch {
+    // best effort
+  }
+}
+
+function clearSlow() {
+  try {
+    fs.unlinkSync(slowFile());
+  } catch {
+    // not there
+  }
+}
+
+class HttpError extends Error {}
+
+/** After a failed send: should the next hooks skip sending for a while? */
+function shouldBackOff(err, slowBefore) {
+  if (err instanceof HttpError) return false; // LoopPrism answered: it is running
+  if (err && err.name === 'TimeoutError') return slowBefore; // hung, not just one slow answer
+  return true; // unreachable: refused, no such host, ...
+}
+
 function startBackoff() {
   try {
     fs.writeFileSync(backoffFile(), String(Date.now()));
@@ -123,14 +164,19 @@ async function readStdin() {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-async function send(event, url = baseUrl()) {
+function timeoutMs(env = process.env) {
+  const ms = Number(env.LOOPPRISM_HOOK_TIMEOUT_MS);
+  return Number.isFinite(ms) && ms > 0 ? ms : TIMEOUT_MS;
+}
+
+async function send(event, url = baseUrl(), ms = TIMEOUT_MS) {
   const res = await fetch(`${url}/api/ingest/events`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ events: [event] }),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.timeout(ms),
   });
-  if (!res.ok) throw new Error(`LoopPrism answered HTTP ${res.status}`);
+  if (!res.ok) throw new HttpError(`LoopPrism answered HTTP ${res.status}`);
 }
 
 async function main(argv = process.argv, env = process.env) {
@@ -147,10 +193,13 @@ async function main(argv = process.argv, env = process.env) {
       const usage = turnUsage(agent, input, env);
       if (usage.length) event.usage = usage;
     }
+    const slowBefore = recentlySlow();
     try {
-      await send(event);
+      await send(event, baseUrl(env), timeoutMs(env));
+      if (slowBefore) clearSlow();
     } catch (err) {
-      startBackoff();
+      if (shouldBackOff(err, slowBefore)) startBackoff();
+      else if (err && err.name === 'TimeoutError') markSlow();
       throw err;
     }
   } catch (err) {
@@ -161,6 +210,6 @@ async function main(argv = process.argv, env = process.env) {
   }
 }
 
-module.exports = { EVENTS, AUTOMATED_LABEL, buildEvent, clip, send };
+module.exports = { EVENTS, AUTOMATED_LABEL, HttpError, buildEvent, clip, send, shouldBackOff };
 
 if (require.main === module) main().then(() => process.exit(0));
