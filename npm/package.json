@@ -1,6 +1,6 @@
 {
   "name": "loopprism",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "See what your coding agents did: sessions, cost, context, loops and savings for Claude Code, Codex, Gemini CLI, OpenCode, Cursor and more. A CLI and an MCP server, no app needed.",
   "license": "MIT",
   "author": "Mark Zhang",

@@ -11,7 +11,7 @@
       "name": "loopprism",
       "source": "./npm/plugin",
       "description": "See what your coding agents did: a skill and MCP tools to review a session's cost, context, loops and errors, spend across agents and ways to spend less; plus live runs for the LoopPrism app.",
-      "version": "0.1.2"
+      "version": "0.2.0"
     }
   ]
 }
