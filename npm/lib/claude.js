@@ -31,13 +31,16 @@ function install({ home, env = process.env } = {}) {
   fs.mkdirSync(dir, { recursive: true });
   fs.cpSync(path.join(packageRoot, '.claude-plugin'), path.join(dir, '.claude-plugin'), { recursive: true });
   fs.cpSync(path.join(packageRoot, 'plugin'), path.join(dir, 'plugin'), { recursive: true });
-  // The plugin as published runs `npx -y loopprism`; installed from here it runs the copy in
-  // ~/.loopprism/app directly (no npx start-up on every launch, works offline).
+  // The plugin as published runs `npx -y loopprism`; when `lpa install` put a copy in
+  // ~/.loopprism/app it runs that directly (no npx start-up on every launch, works offline).
+  // The desktop app installs the plugin from its own bundle, which has no such copy: keep npx.
   const inspector = require('./inspector');
   const l = inspector.launcher({ home });
-  const { atomicWrite } = require('./fsutil');
-  atomicWrite(path.join(dir, 'plugin', '.mcp.json'), `${JSON.stringify({ mcpServers: { loopprism: inspector.mcpServer(l) } }, null, 2)}\n`);
-  atomicWrite(path.join(dir, 'plugin', 'skills', 'loopprism', 'SKILL.md'), inspector.skillText(l));
+  if (fs.existsSync(l.args[0])) {
+    const { atomicWrite } = require('./fsutil');
+    atomicWrite(path.join(dir, 'plugin', '.mcp.json'), `${JSON.stringify({ mcpServers: { loopprism: inspector.mcpServer(l) } }, null, 2)}\n`);
+    atomicWrite(path.join(dir, 'plugin', 'skills', 'loopprism', 'SKILL.md'), inspector.skillText(l));
+  }
 
   // Re-adding replaces a stale registration; removing first keeps it idempotent.
   run(['plugin', 'uninstall', PLUGIN], env);

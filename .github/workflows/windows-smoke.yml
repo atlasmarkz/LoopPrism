@@ -2,13 +2,24 @@ name: Windows smoke test
 
 # Builds the Windows installer and exercises the installed app end to end on a real
 # Windows runner (see desktop/scripts/smoke-windows.ps1). Never publishes anything.
+#
+# Runs only for what goes into the installer: the app, the Python sidecar, the dashboard, and the
+# parts of npm/ the app bundles (electron-builder.config.js: lib, plugin, .claude-plugin,
+# package.json). npm/core, its tests and the parity scripts are not in the installer. Pull requests
+# only (a push to a feature branch would run it a second time for the same commit).
 on:
   workflow_dispatch: {}
-  push:
-    branches: [windows-support, "feat/**"]
   pull_request:
     branches: [main]
-    paths: ["desktop/**", "npm/**", "src/**", "dashboard/**", ".github/workflows/windows-smoke.yml"]
+    paths:
+      - "desktop/**"
+      - "src/**"
+      - "dashboard/**"
+      - "npm/lib/**"
+      - "npm/plugin/**"
+      - "npm/.claude-plugin/**"
+      - "npm/package.json"
+      - ".github/workflows/windows-smoke.yml"
   schedule:
     - cron: "17 3 * * 1" # weekly, so a Windows runner or dependency change shows up without a push
 
