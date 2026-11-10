@@ -12,6 +12,20 @@ from ..trace.collector import TraceCollector
 from ..proxy.server import ProxyServer
 from ..api.app import create_app
 
+
+def _prepare_db_path(db_path: str) -> str:
+    """Expand ``~`` and make sure the database's directory exists.
+
+    ``Path.parent`` of a bare filename is ``.``, so ``--db traces.db``
+    lands in the current directory instead of calling ``os.makedirs("")``.
+    """
+    from pathlib import Path
+
+    path = Path(db_path).expanduser()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return str(path)
+
+
 app = typer.Typer(
     name="lprism",
     help="See what your agents actually do.",
@@ -74,12 +88,8 @@ def proxy(
     and open the dashboard to see every tool call.
     """
     import asyncio
-    import os
-    from pathlib import Path
 
-    # Expand ~ in db_path
-    db_path_expanded = str(Path(db_path).expanduser())
-    os.makedirs(os.path.dirname(db_path_expanded), exist_ok=True)
+    db_path_expanded = _prepare_db_path(db_path)
 
     # Override config from CLI args
     config.proxy_port = port
@@ -163,10 +173,9 @@ def analyze(
     ),
 ) -> None:
     """Analyze a specific trace offline."""
-    from pathlib import Path
     import asyncio
 
-    db_path_expanded = str(Path(db_path).expanduser())
+    db_path_expanded = _prepare_db_path(db_path)
 
     async def _analyze() -> None:
         from ..trace.collector import TraceCollector
@@ -176,8 +185,10 @@ def analyze(
         console = Console()
         collector = TraceCollector(db_path=db_path_expanded)
         await collector.initialize()
-
-        trace_data = await collector.get_trace(trace_id)
+        try:
+            trace_data = await collector.get_trace(trace_id)
+        finally:
+            await collector.close()
         if not trace_data:
             console.print(
                 f"[red]Trace {trace_id} not found.[/]",
@@ -221,9 +232,8 @@ def dashboard(
 ) -> None:
     """Start standalone dashboard (for remote trace storage)."""
     import asyncio
-    from pathlib import Path
 
-    db_path_expanded = str(Path(db_path).expanduser())
+    db_path_expanded = _prepare_db_path(db_path)
 
     async def _serve() -> None:
         from ..trace.collector import TraceCollector
