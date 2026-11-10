@@ -5,7 +5,7 @@ Thanks for helping! LoopPrism supports **macOS and Windows**, with the same feat
 ## Set up
 
 ```bash
-git clone https://github.com/AMark-CS/LoopPrism.git && cd LoopPrism
+git clone https://github.com/atlasmarkz/LoopPrism.git && cd LoopPrism
 pip install -e ".[dev]" && pytest          # Python backend
 cd dashboard && npm ci && npm run dev      # dashboard
 cd ../desktop && npm ci && npm test        # desktop app

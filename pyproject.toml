@@ -51,9 +51,9 @@ dev = [
 lprism = "loopprism.cli.main:app"
 
 [project.urls]
-Homepage = "https://github.com/AMark-CS/LoopPrism"
-Repository = "https://github.com/AMark-CS/LoopPrism"
-Issues = "https://github.com/AMark-CS/LoopPrism/issues"
+Homepage = "https://github.com/atlasmarkz/LoopPrism"
+Repository = "https://github.com/atlasmarkz/LoopPrism"
+Issues = "https://github.com/atlasmarkz/LoopPrism/issues"
 
 [build-system]
 requires = ["hatchling"]

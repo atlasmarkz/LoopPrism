@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "loopprism": {
+      "command": "npx",
+      "args": ["-y", "loopprism", "mcp"]
+    }
+  }
+}

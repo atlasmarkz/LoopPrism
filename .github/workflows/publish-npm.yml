@@ -25,6 +25,9 @@ jobs:
       - name: Tag matches package version
         run: test "npm-v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
       - run: npm test
+      # The dashboard for `lpa ui`: the build committed for pip users, checked against dashboard/src in CI.
+      - name: Bundle the dashboard
+        run: rm -rf dashboard && cp -R ../src/loopprism/dashboard/dist dashboard && test -f dashboard/index.html
       - run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

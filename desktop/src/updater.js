@@ -18,7 +18,7 @@ const path = require("node:path");
 const { execFile, spawn } = require("node:child_process");
 const { Readable } = require("node:stream");
 
-const REPO = "AMark-CS/LoopPrism";
+const REPO = "atlasmarkz/LoopPrism";
 const TAG_PREFIX = "desktop-v";
 const DEFAULT_API = `https://api.github.com/repos/${REPO}/releases?per_page=30`;
 const DAY_MS = 24 * 60 * 60 * 1000;

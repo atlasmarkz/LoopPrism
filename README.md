@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/AMark-CS/LoopPrism/releases/latest"><img src="https://img.shields.io/github/v/release/AMark-CS/LoopPrism?filter=desktop-v*&label=desktop&color=7c6cf0" alt="Desktop release"></a>
+  <a href="https://github.com/atlasmarkz/LoopPrism/releases/latest"><img src="https://img.shields.io/github/v/release/atlasmarkz/LoopPrism?filter=desktop-v*&label=desktop&color=7c6cf0" alt="Desktop release"></a>
   <a href="https://www.npmjs.com/package/loopprism"><img src="https://img.shields.io/npm/v/loopprism?label=npm&color=cb3837" alt="npm"></a>
   <img src="https://img.shields.io/badge/macOS-arm64%20%7C%20x64-black?logo=apple" alt="macOS">
   <img src="https://img.shields.io/badge/Windows-x64-0078d4?logo=windows&logoColor=white" alt="Windows">
@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/AMark-CS/LoopPrism/releases/latest"><b>Download</b></a> ·
+  <a href="https://github.com/atlasmarkz/LoopPrism/releases/latest"><b>Download</b></a> ·
   <a href="#features">Features</a> ·
   <a href="#get-started">Get started</a>
 </p>
@@ -143,7 +143,7 @@
     <td align="center" width="25%"><img src="docs/assets/apps/opencode.png" width="72" alt="OpenCode"><br><b>OpenCode</b></td>
     <td align="center" width="25%"><img src="docs/assets/apps/deepseek-harness.png" width="72" alt="DeepSeek Harness"><br><b>DeepSeek Harness</b></td>
     <td align="center" width="25%"><img src="docs/assets/apps/workbuddy.png" width="72" alt="WorkBuddy"><br><b>WorkBuddy</b></td>
-    <td align="center" width="25%"><img src="docs/assets/apps/more.svg" width="72" alt="More apps coming"><br><a href="https://github.com/AMark-CS/LoopPrism/issues">More apps coming</a></td>
+    <td align="center" width="25%"><img src="docs/assets/apps/more.svg" width="72" alt="More apps coming"><br><a href="https://github.com/atlasmarkz/LoopPrism/issues">More apps coming</a></td>
   </tr>
 </table>
 
@@ -177,14 +177,14 @@ Everything stays on your machine: SQLite on disk, no Docker, no cloud, no accoun
 
 **macOS**
 
-1. Download the `.dmg` from the [latest release](https://github.com/AMark-CS/LoopPrism/releases/latest)
+1. Download the `.dmg` from the [latest release](https://github.com/atlasmarkz/LoopPrism/releases/latest)
    (`arm64` for Apple Silicon, `x64` for Intel) and drag **LoopPrism** into Applications.
 2. Open it. First launch: right-click the app → **Open** (it is not notarized yet), or
    `xattr -dr com.apple.quarantine /Applications/LoopPrism.app`.
 
 **Windows (x64)**
 
-1. Download `LoopPrism-<version>-x64.exe` from the [latest release](https://github.com/AMark-CS/LoopPrism/releases/latest)
+1. Download `LoopPrism-<version>-x64.exe` from the [latest release](https://github.com/atlasmarkz/LoopPrism/releases/latest)
    and run it. The installer lets you choose the install folder
    and whether to install for just you (default, no administrator prompt) or for everyone on the PC.
 2. It is not code-signed yet, so SmartScreen may warn: click **More info → Run anyway**.
@@ -196,7 +196,7 @@ Claude Code and Codex for live runs, and keeps running from the menu bar (macOS)
 ### Command line
 
 ```bash
-pip install "git+https://github.com/AMark-CS/LoopPrism.git"   # or: uv tool install git+https://github.com/AMark-CS/LoopPrism.git
+pip install "git+https://github.com/atlasmarkz/LoopPrism.git"   # or: uv tool install git+https://github.com/atlasmarkz/LoopPrism.git
 lprism proxy                                                    # then open http://localhost:8080
 ```
 
@@ -209,7 +209,7 @@ npx loopprism install     # adds the hooks to Claude Code, Codex, Gemini CLI, Cu
 lpa status                # newest runs
 ```
 
-Claude Code can also use the plugin directly (`/plugin marketplace add AMark-CS/LoopPrism`, then
+Claude Code can also use the plugin directly (`/plugin marketplace add atlasmarkz/LoopPrism`, then
 `/plugin install loopprism@loopprism`). In Codex, run `/hooks` once to trust the hooks; restart
 WorkBuddy, Gemini CLI and OpenCode after installing (OpenCode gets a one-file plugin). DeepSeek Harness sessions are read from `~/.dsh` (or `$DSH_HOME`) and from DSH Desktop's own data folder, and
 WorkBuddy's from `~/.workbuddy` (or `$WORKBUDDY_CONFIG_DIR`), and OpenCode's from its database, with
@@ -221,10 +221,10 @@ nothing to set up. For live runs, DeepSeek Harness needs one manual step: `lpa i
 
 ## Star History
 
-<a href="https://star-history.com/#AMark-CS/LoopPrism&Date">
+<a href="https://star-history.com/#atlasmarkz/LoopPrism&Date">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=AMark-CS/LoopPrism&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=AMark-CS/LoopPrism&type=Date" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=AMark-CS/LoopPrism&type=Date" width="100%" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=atlasmarkz/LoopPrism&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=atlasmarkz/LoopPrism&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=atlasmarkz/LoopPrism&type=Date" width="100%" />
   </picture>
 </a>

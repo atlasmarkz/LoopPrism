@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/AMark-CS/LoopPrism/releases/latest"><b>下载</b></a> ·
+  <a href="https://github.com/atlasmarkz/LoopPrism/releases/latest"><b>下载</b></a> ·
   <a href="#功能">功能</a> ·
   <a href="#开始使用">开始使用</a>
 </p>
@@ -70,7 +70,7 @@
     <td align="center" width="25%"><img src="docs/assets/apps/opencode.png" width="72" alt="OpenCode"><br><b>OpenCode</b></td>
     <td align="center" width="25%"><img src="docs/assets/apps/deepseek-harness.png" width="72" alt="DeepSeek Harness"><br><b>DeepSeek Harness</b></td>
     <td align="center" width="25%"><img src="docs/assets/apps/workbuddy.png" width="72" alt="WorkBuddy"><br><b>WorkBuddy</b></td>
-    <td align="center" width="25%"><img src="docs/assets/apps/more.svg" width="72" alt="更多应用即将支持"><br><a href="https://github.com/AMark-CS/LoopPrism/issues">更多应用即将支持</a></td>
+    <td align="center" width="25%"><img src="docs/assets/apps/more.svg" width="72" alt="更多应用即将支持"><br><a href="https://github.com/atlasmarkz/LoopPrism/issues">更多应用即将支持</a></td>
   </tr>
 </table>
 
@@ -92,7 +92,7 @@ LoopPrism 支持 **macOS** 和 **Windows**，两个平台功能一致。
 
 ### 桌面应用（macOS 和 Windows，推荐）
 
-- **macOS**：从[最新发布](https://github.com/AMark-CS/LoopPrism/releases/latest)下载 `.dmg`（Apple 芯片选 `arm64`，Intel 选 `x64`），拖到“应用程序”。首次打开：右键应用 → **打开**（暂未公证），或运行 `xattr -dr com.apple.quarantine /Applications/LoopPrism.app`。
+- **macOS**：从[最新发布](https://github.com/atlasmarkz/LoopPrism/releases/latest)下载 `.dmg`（Apple 芯片选 `arm64`，Intel 选 `x64`），拖到“应用程序”。首次打开：右键应用 → **打开**（暂未公证），或运行 `xattr -dr com.apple.quarantine /Applications/LoopPrism.app`。
 - **Windows (x64)**：下载 `LoopPrism-<版本>-x64.exe` 并运行，可选择安装目录，以及仅为自己安装（默认，无需管理员权限）还是为所有用户安装。尚未代码签名，SmartScreen 可能提示，点 **更多信息 → 仍要运行**。
 
 应用自带全部依赖，无需 Python 或终端；它会在菜单栏（macOS）或系统托盘（Windows）中保持运行。
@@ -100,7 +100,7 @@ LoopPrism 支持 **macOS** 和 **Windows**，两个平台功能一致。
 ### 命令行
 
 ```bash
-pip install "git+https://github.com/AMark-CS/LoopPrism.git"
+pip install "git+https://github.com/atlasmarkz/LoopPrism.git"
 lprism proxy        # 然后打开 http://localhost:8080
 ```
 

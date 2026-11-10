@@ -1,7 +1,7 @@
 # LoopPrism for Claude Code
 
 Shows what your agent actually did. This plugin records each prompt, tool call and error from
-your Claude Code sessions as a **run** in [LoopPrism](https://github.com/AMark-CS/LoopPrism),
+your Claude Code sessions as a **run** in [LoopPrism](https://github.com/atlasmarkz/LoopPrism),
 a local observability tool, so you can open a dashboard and see every step, how long it took,
 and where it failed.
 
@@ -59,11 +59,11 @@ exits successfully, so it cannot block or fail your session.
 ## Install
 
 ```
-/plugin marketplace add AMark-CS/LoopPrism
+/plugin marketplace add atlasmarkz/LoopPrism
 /plugin install loopprism@loopprism
 ```
 
 or from a shell: `npx loopprism install` (this also sets up Codex).
 Remove it with `/plugin uninstall loopprism@loopprism`.
 
-MIT licensed. Source: https://github.com/AMark-CS/LoopPrism (this plugin is in `npm/plugin`).
+MIT licensed. Source: https://github.com/atlasmarkz/LoopPrism (this plugin is in `npm/plugin`).
