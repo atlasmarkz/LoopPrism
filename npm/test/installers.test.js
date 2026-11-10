@@ -64,8 +64,15 @@ test('claude install registers the plugin in an isolated config', { skip: !claud
   const claude = require('../lib/claude');
   const home = tmp();
   const env = { ...process.env, CLAUDE_CONFIG_DIR: path.join(home, 'claude-config'), HOME: home };
+  const mcpOf = () => JSON.parse(fs.readFileSync(path.join(home, '.loopprism', 'claude-marketplace', 'plugin', '.mcp.json'), 'utf8')).mcpServers.loopprism;
   claude.install({ home, env });
   assert.equal(claude.isInstalled(env), true);
+  // Installed from the desktop app's bundle (no ~/.loopprism/app): the published npx command.
+  assert.equal(mcpOf().command, 'npx');
+  // After `lpa install` copied the package: that copy, by absolute path.
+  require('../lib/inspector').installApp({ home });
+  claude.install({ home, env });
+  assert.deepEqual(mcpOf().args, [path.join(home, '.loopprism', 'app', 'bin', 'lpa.js'), 'mcp']);
   claude.uninstall({ home, env });
   assert.equal(claude.isInstalled(env), false);
   assert.equal(fs.existsSync(path.join(home, '.loopprism', 'claude-marketplace')), false);

@@ -113,7 +113,8 @@ function install({ targets, url, live: liveFlag }) {
       let next = '';
       if (agent === 'claude') {
         claude.install();
-        parts.push('skill', 'MCP', 'live hooks', '/loopprism:status');
+        // The plugin always carries its hooks; they do nothing while no LoopPrism app is running.
+        parts.push('skill', 'MCP', live ? 'live hooks' : 'hooks (idle until the app runs)', '/loopprism:open');
         next = 'Restart Claude Code.';
       } else if (agent === 'workbuddy' || agent === 'dsh') {
         if (!live) {
