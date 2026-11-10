@@ -185,14 +185,18 @@ def data_lines(lines):
 
 
 async def finished_span(db_path, trace_id, timeout=5.0):
-    """The span of a trace once it is finished (streams finish it at their end)."""
+    """The span of a trace once it is finished (streams finish it at their end).
+
+    A new span already has status 'ok' (the column default), so "finished" is
+    read from latency_ms, which only finish_span() sets.
+    """
     collector = TraceCollector(db_path)
     await collector.initialize()
     try:
         deadline = time.monotonic() + timeout
         while True:
             _, spans = await collector.get_trace(trace_id)
-            if spans and spans[0]["status"] != "running":
+            if spans and spans[0]["latency_ms"] is not None:
                 return spans[0]
             assert time.monotonic() < deadline, f"span not finished: {spans}"
             await asyncio.sleep(0.05)
