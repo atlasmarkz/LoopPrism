@@ -105,32 +105,50 @@ function desktopApp(env = process.env, lookup = windowsInstallDirs) {
   return candidates.find((p) => fs.existsSync(p)) || null;
 }
 
-/** Open the desktop app if installed, otherwise the dashboard in the browser. */
-async function open(log = console.log, url = baseUrl()) {
-  const app = desktopApp();
-  const { cmd, pre } = launcher();
-  // Launching the exe again just brings the running app's window forward.
-  const [run, args] = app ? (process.platform === 'darwin' ? [cmd, [app]] : [app, []]) : [cmd, [...pre, `${url}/`]];
-  try {
-    await api('/api/health', url);
-  } catch {
-    if (!app) {
-      log(downMessage(url));
-      return 1;
-    }
-  }
-  spawn(run, args, { stdio: 'ignore', detached: true, windowsHide: true }).unref();
-  log(app ? 'Opening the LoopPrism app.' : `Opening ${url}/`);
-  return 0;
+/**
+ * `lpa ui --detach`, from the copy `lpa install` put in ~/.loopprism/app, else through npx: the
+ * dashboard served by Node from the session files, no app needed. Returns the process exit code.
+ */
+function startNodeUi(log, extra = [], home = require('os').homedir()) {
+  const lpa = path.join(home, '.loopprism', 'app', 'bin', 'lpa.js');
+  const [run, args] = fs.existsSync(lpa)
+    ? [process.execPath, [lpa, 'ui', '--detach', ...extra]]
+    : [process.platform === 'win32' ? 'npx.cmd' : 'npx', ['-y', 'loopprism', 'ui', '--detach', ...extra]];
+  const r = spawnSync(run, args, { encoding: 'utf8', timeout: 60_000, windowsHide: true, shell: process.platform === 'win32' && run === 'npx.cmd' });
+  const out = `${r.stdout || ''}${r.stderr || ''}`.trim();
+  if (out) log(out);
+  return r.status === 0 ? 0 : 1;
 }
 
-module.exports = { status, open, api, desktopApp, windowsInstallDirs };
+/** Open the desktop app if installed; else a running LoopPrism's dashboard; else the Node dashboard. */
+async function open(log = console.log, url = baseUrl(), extra = []) {
+  const app = desktopApp();
+  const { cmd, pre } = launcher();
+  if (app) {
+    // Launching the exe again just brings the running app's window forward.
+    const [run, args] = process.platform === 'darwin' ? [cmd, [app]] : [app, []];
+    spawn(run, args, { stdio: 'ignore', detached: true, windowsHide: true }).unref();
+    log('Opening the LoopPrism app.');
+    return 0;
+  }
+  try {
+    await api('/api/health', url);
+    spawn(cmd, [...pre, `${url}/`], { stdio: 'ignore', detached: true, windowsHide: true }).unref();
+    log(`Opening ${url}/`);
+    return 0;
+  } catch {
+    return startNodeUi(log, extra);
+  }
+}
+
+module.exports = { status, open, api, desktopApp, windowsInstallDirs, startNodeUi };
 
 if (require.main === module) {
   const [, , command] = process.argv;
-  const run = command === 'open' ? open : command === 'status' ? status : null;
+  const extra = process.argv.slice(3); // open: a session to show (`current`, an id)
+  const run = command === 'open' ? () => open(console.log, baseUrl(), extra) : command === 'status' ? status : null;
   if (!run) {
-    console.error('usage: viewer.js status|open');
+    console.error('usage: viewer.js status|open [SESSION]');
     process.exit(2);
   }
   run().then((code) => process.exit(code));

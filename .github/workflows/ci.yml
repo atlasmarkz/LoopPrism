@@ -86,6 +86,40 @@ jobs:
           [ "$code" -eq 0 ] || echo "::error title=npm tests failed on ${{ matrix.os }}::$(tail -n 40 test.log | sed ':a;N;$!ba;s/\n/%0A/g')"
           exit $code
 
+  # The npm package carries a Node port of the Python session core (npm/core), so the CLI, the MCP
+  # server and the agent plugins work without the app. Both must read every agent's sessions alike.
+  parity:
+    name: Node core matches the Python core
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12" # 3.12+: sum() of floats is compensated, as in the Node port
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[dev]"
+      - name: Compare on made-up sessions of every agent
+        shell: bash
+        run: |
+          python scripts/make_parity_fixtures.py "$RUNNER_TEMP/fx"
+          eval "$(python scripts/make_parity_fixtures.py "$RUNNER_TEMP/fx" --env)"
+          PARITY_PYTHON=python node npm/parity/compare.js
+      # `lpa ui` serves the same dashboard from Node: its API must answer like the Python server's.
+      - name: The dashboard API matches the Python server
+        shell: bash
+        run: |
+          eval "$(python scripts/make_parity_fixtures.py "$RUNNER_TEMP/fx" --env)"
+          lprism dashboard --port 8781 --db "$RUNNER_TEMP/py.db" > "$RUNNER_TEMP/py.log" 2>&1 &
+          LOOPPRISM_INDEX="$RUNNER_TEMP/node.db" node npm/bin/lpa.js ui --port 8782 --no-open > "$RUNNER_TEMP/node.log" 2>&1 &
+          for i in $(seq 30); do curl -sf http://127.0.0.1:8781/api/health > /dev/null && curl -sf http://127.0.0.1:8782/api/health > /dev/null && break; sleep 1; done
+          node npm/parity/api_compare.js http://127.0.0.1:8781 http://127.0.0.1:8782 || { cat "$RUNNER_TEMP/py.log" "$RUNNER_TEMP/node.log"; exit 1; }
+
   dashboard:
     name: Dashboard lint and build
     runs-on: ubuntu-latest
