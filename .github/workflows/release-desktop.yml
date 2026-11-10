@@ -22,7 +22,7 @@ jobs:
           # The PyInstaller sidecar is frozen per-architecture, so each arch
           # builds natively on its own runner.
           - name: mac-arm64
-            runner: macos-14
+            runner: macos-15 # Apple silicon; GitHub no longer runs macos-14 jobs
           - name: mac-x64
             runner: macos-15-intel
           # NSIS installer for Windows x64 (no ARM build yet).
