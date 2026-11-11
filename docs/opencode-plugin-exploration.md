@@ -76,7 +76,7 @@ free `opencode-go` model, one small prompt each):
 7. **Tested on OpenCode 1.19.5** (npm `opencode-ai`, fully isolated XDG dirs, a local mock
    OpenAI-compatible server): the same default export, loaded via `"plugin": ["file:///.../src/index.js"]`,
    ran its `server()` hooks and reported prompt/tool/stop.
-7. **Local plugin directory gotcha (V2)**: a directory under `plugins/` whose `package.json` has
+8. **Local plugin directory gotcha (V2)**: a directory under `plugins/` whose `package.json` has
    both `name` and `exports` was skipped **silently** (no log line); the same package works when
    installed through `plugin add`, and a directory without `name`/`exports` works with a root
    `index.js`. Reading `Host.resolve` (**Source**) it looks like self-referencing resolution does not
