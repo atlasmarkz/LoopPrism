@@ -103,12 +103,13 @@ function trash(file, allowedRoots) {
     err.code = 'EPERM';
     throw err;
   }
-  if (path.extname(real) !== '.jsonl' || !fs.statSync(real).isFile()) {
+  const suffix = real.endsWith('.jsonl.zst') ? '.jsonl.zst' : '.jsonl'; // Codex compresses finished rollouts
+  if (!real.endsWith(suffix) || !fs.statSync(real).isFile()) {
     const err = new Error(real);
     err.code = 'ENOENT';
     throw err;
   }
-  const sibling = real.slice(0, -'.jsonl'.length);
+  const sibling = real.slice(0, -suffix.length);
   const hasSibling = fs.existsSync(sibling) && fs.statSync(sibling).isDirectory();
   if (process.platform === 'win32') {
     const { spawnSync } = require('child_process');

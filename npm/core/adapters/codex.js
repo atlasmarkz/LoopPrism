@@ -9,7 +9,13 @@ const { usageCost } = require('../pricing');
 const U = require('../util');
 
 const AGENT = 'codex';
-const CONTEXT_PREFIXES = ['<environment_context>', '<user_instructions>', '# AGENTS.md', '<permissions', '<turn_aborted>'];
+// User-role messages Codex (CLI and desktop app) injects itself; none is something the user typed.
+const CONTEXT_PREFIXES = [
+  '<environment_context>', '<user_instructions>', '# AGENTS.md', '<permissions', '<turn_aborted>',
+  '<codex_internal_context', '<external_codex_apps_', '<in-app-browser-context', '<recommended_plugins>',
+  '<heartbeat>', '<send_user_message_',
+];
+const ROLLOUT = /\.jsonl(\.zst)?$/;
 
 function root() {
   const base = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
@@ -28,11 +34,13 @@ function discover(dir) {
     for (const e of entries) {
       const p = path.join(d, e.name);
       if (e.isDirectory()) walk(p);
-      else if (e.isFile() && e.name.startsWith('rollout-') && e.name.endsWith('.jsonl')) found.push(p);
+      else if (e.isFile() && e.name.startsWith('rollout-') && ROLLOUT.test(e.name)) found.push(p);
     }
   };
   walk(dir);
-  return found;
+  // A rollout is compressed once it is finished; if both forms exist, read the plain one.
+  const plain = new Set(found.filter((f) => !f.endsWith('.zst')));
+  return found.filter((f) => !f.endsWith('.zst') || !plain.has(f.slice(0, -'.zst'.length)));
 }
 
 function textOf(content) {
@@ -48,7 +56,7 @@ function textOf(content) {
 function parse(file) {
   const stat = fs.statSync(file);
   const rows = U.readRows(file);
-  const base = path.basename(file, path.extname(file));
+  const base = path.basename(file).replace(ROLLOUT, '');
   const sid = base.includes('rollout-') ? base.slice(base.indexOf('rollout-') + 'rollout-'.length) : base;
   // A long session is stored in several rollout files (one per history page) that share the
   // session id; keep the pages apart.
