@@ -1,0 +1,14 @@
+# Bundle patch: inserts the LoopPrism plugin into the profile's plugin tree.
+# The row name is this package's own name; bundle patches are composed from the
+# profile directory, where the package resolves through the profile's node_modules.
+#
+# Optional config (all keys may be left out):
+#   url:         where the LoopPrism app listens (default: LOOPPRISM_URL, then
+#                ~/.loopprism/agent.json, then http://127.0.0.1:8080)
+#   live:        false stops the plugin from sending steps to the app
+#   sendPrompts: false leaves the prompt text out of what is sent
+#   tools:       false skips registering the review tools
+
+- insert:
+    - id: loopprism
+      name: 'dsh-loopprism'
