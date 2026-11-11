@@ -82,4 +82,29 @@ function isInstalled({ home, env = process.env } = {}) {
   );
 }
 
-module.exports = { install, uninstall, isInstalled, stripOurs, addOurs, MARKER };
+/**
+ * Is LoopPrism installed as a Codex plugin (`codex plugin add loopprism@...`)? Codex lists it in
+ * config.toml as [plugins."loopprism@<marketplace>"] with enabled = true (the default when absent).
+ * The plugin already carries the skill, the MCP server and the hooks: adding ours as well would
+ * register every one of them twice (and send each event twice).
+ */
+function pluginEnabled({ home, env = process.env } = {}) {
+  let text;
+  try {
+    text = fs.readFileSync(path.join(codexHome(env, home), 'config.toml'), 'utf8');
+  } catch {
+    return false;
+  }
+  let inPlugin = false;
+  let enabled = false;
+  for (const line of text.split(/\r?\n/)) {
+    const section = line.match(/^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(#.*)?$/);
+    if (section) {
+      inPlugin = /^plugins\.["']loopprism@[^"']+["']$/.test(section[1]);
+      if (inPlugin) enabled = true;
+    } else if (inPlugin && /^\s*enabled\s*=\s*false\b/.test(line)) enabled = false;
+  }
+  return enabled;
+}
+
+module.exports = { install, uninstall, isInstalled, pluginEnabled, stripOurs, addOurs, MARKER };

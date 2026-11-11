@@ -43,6 +43,19 @@ function discover(dir) {
   return found.filter((f) => !f.endsWith('.zst') || !plain.has(f.slice(0, -'.zst'.length)));
 }
 
+/**
+ * Codex records threads it starts itself in their own rollout files: the automatic approval
+ * reviewer (`thread_source: guardian_review`, source.subagent.other = "guardian") and the agents a
+ * session spawns (source.subagent.thread_spawn, with parent_thread_id and agent_nickname). Their
+ * first prompt is boilerplate, so the session list labels them instead.
+ */
+function threadLabel(meta) {
+  const sub = U.isObj(meta.source) && U.isObj(meta.source.subagent) ? meta.source.subagent : null;
+  if (meta.thread_source === 'guardian_review' || (sub && sub.other === 'guardian')) return 'Auto-review';
+  if (sub && U.isObj(sub.thread_spawn)) return `Subagent ${U.or(sub.thread_spawn.agent_nickname, U.or(meta.agent_nickname, ''))}`.trim();
+  return '';
+}
+
 function textOf(content) {
   if (typeof content === 'string') return content;
   const parts = [];
@@ -72,6 +85,7 @@ function parse(file) {
   const modelsSeen = [];
   const systemTexts = [];
   let toolsSchema = [];
+  let label = '';
   let sawDeveloper = false;
   let pending = [];
   let lastInputTs = null;
@@ -98,6 +112,7 @@ function parse(file) {
       if (page && !String(meta.id).includes('_')) meta.id = `${meta.id}_${page[1]}`;
       meta.version = U.or(p.cli_version, meta.version);
       meta.started_at = U.or(p.timestamp, meta.started_at);
+      label = threadLabel(p);
     } else if (t === 'turn_context') {
       if (U.T(p.turn_id) && U.T(p.model)) modelOfTurn.set(p.turn_id, p.model);
       meta.project = U.or(meta.project, U.get(p, 'cwd', null));
@@ -198,7 +213,7 @@ function parse(file) {
     models: modelsSeen,
     costOf: (st) => usageCost(st.model, M.usage(st)),
     steps: ps.steps.filter((s) => !s.sidechain).length,
-    title: U.or(U.firstLineOf(firstPrompt), meta.id),
+    title: label ? `${label}: ${U.or(U.firstLineOf(firstPrompt), meta.id)}` : U.or(U.firstLineOf(firstPrompt), meta.id),
   });
   meta.subagent_steps = ps.steps.filter((s) => s.sidechain).length;
   ps.search_text = search.toString();

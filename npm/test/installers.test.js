@@ -136,3 +136,21 @@ test('Codex and WorkBuddy share the hook scripts: removing one keeps them for th
   workbuddy.uninstall({ home, env: {} });
   assert.equal(fs.existsSync(scripts), false);
 });
+
+test('codex: LoopPrism installed as a Codex plugin is recognised, a disabled one is not', () => {
+  const home = tmp();
+  const cfg = path.join(home, '.codex', 'config.toml');
+  fs.mkdirSync(path.dirname(cfg), { recursive: true });
+  const check = (text) => {
+    fs.writeFileSync(cfg, text);
+    return codex.pluginEnabled({ home, env: {} });
+  };
+  assert.equal(codex.pluginEnabled({ home, env: {} }), false, 'no config.toml');
+  assert.equal(check('[marketplaces.loopprism]\nsource_type = "local"\n'), false, 'marketplace alone');
+  assert.equal(check('[plugins."loopprism@loopprism"]\nenabled = true\n'), true);
+  assert.equal(check('[plugins."loopprism@loopprism"]\n'), true, 'enabled is the default');
+  assert.equal(check('[plugins."loopprism@loopprism"]\nenabled = false\n'), false);
+  assert.equal(check('[plugins."loopprism@loopprism"]\nenabled = false\n\n[plugins."other@x"]\nenabled = true\n'), false);
+  assert.equal(check('[plugins."other@x"]\nenabled = true\n'), false);
+  assert.equal(check("[plugins.'loopprism@acme']\nenabled = true # on\n"), true);
+});

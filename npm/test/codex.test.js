@@ -72,3 +72,21 @@ test('Codex: a damaged .zst file is an empty session, not a crash', { skip: !has
   const ps = codex.parse(codex.discover(dir)[0]);
   assert.strictEqual(ps.events.length, 0);
 });
+
+test('Codex: threads Codex starts itself are labelled, not shown as the boilerplate prompt', (t) => {
+  const { dir, day } = sessionsDir(t);
+  const make = (id, source, extra = {}) => {
+    const list = rows(id);
+    list[0].payload = { ...list[0].payload, source, ...extra };
+    fs.writeFileSync(path.join(day, `rollout-2026-11-01T10-00-00-${id}.jsonl`), jl(list));
+  };
+  make('g-1', { subagent: { other: 'guardian' } }, { thread_source: 'guardian_review' });
+  make('s-1', { subagent: { thread_spawn: { parent_thread_id: 'p', depth: 1, agent_nickname: 'Halley' } } }, { thread_source: 'subagent' });
+  make('u-1', 'vscode', { thread_source: 'user' });
+  const titles = Object.fromEntries(codex.discover(dir).map((f) => codex.parse(f)).map((ps) => [ps.meta.id, ps.meta.title]));
+  assert.deepEqual(titles, {
+    'g-1': 'Auto-review: Fix the flaky test',
+    's-1': 'Subagent Halley: Fix the flaky test',
+    'u-1': 'Fix the flaky test',
+  });
+});
