@@ -1,0 +1,40 @@
+{
+  "name": "opencode-loopprism",
+  "version": "0.1.0",
+  "description": "LoopPrism for OpenCode: live runs, cost, context and loops for your OpenCode sessions, plus the LoopPrism MCP server and skill. Reports to a local LoopPrism only; nothing leaves your machine.",
+  "license": "MIT",
+  "author": "Mark Zhang",
+  "homepage": "https://github.com/atlasmarkz/LoopPrism",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/atlasmarkz/LoopPrism.git",
+    "directory": "opencode-plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/atlasmarkz/LoopPrism/issues"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "observability",
+    "cost",
+    "tokens",
+    "mcp",
+    "loopprism"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "loopprism": "^0.2.0"
+  },
+  "scripts": {
+    "test": "node --test test/"
+  }
+}
