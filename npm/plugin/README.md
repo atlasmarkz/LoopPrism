@@ -1,12 +1,21 @@
 # LoopPrism for Claude Code
 
-Shows what your agent actually did. This plugin records each prompt, tool call and error from
-your Claude Code sessions as a **run** in [LoopPrism](https://github.com/atlasmarkz/LoopPrism),
-a local observability tool, so you can open a dashboard and see every step, how long it took,
-and where it failed.
+Shows what your agent actually did, in two parts:
 
-It needs LoopPrism running on your machine (the LoopPrism desktop app, or `lprism proxy`).
-If LoopPrism is not running, the plugin does nothing and does not slow Claude Code down.
+- **Review tools (no app needed).** A skill and a local MCP server (`npx -y loopprism@<version> mcp`)
+  that read the session transcripts Claude Code, Codex, Gemini CLI, OpenCode, Cursor and others keep on
+  your machine, and answer: what did this session cost, what filled the context window, where did the
+  agent loop or fail, and how to spend less. Ask in plain words ("why was this session expensive?").
+- **Live runs.** Hooks that record each prompt, tool call and error from your Claude Code sessions as a
+  **run** in [LoopPrism](https://github.com/atlasmarkz/LoopPrism), a local observability tool, so the
+  dashboard shows every step while it happens. This part needs LoopPrism running on your machine (the
+  desktop app, or `lprism proxy`). If it is not running, the hooks do nothing and do not slow Claude Code down.
+
+**Requirements:** Node.js 22.15 or newer on your `PATH` (the hooks run `node`; the MCP server runs
+through `npx`). The first start downloads the `loopprism` package from the npm registry; later starts
+use npm's cache, but `npx` still asks the registry, so with no network the MCP server fails to start
+(Claude Code carries on without its tools). `npx loopprism install` puts a local copy in
+`~/.loopprism/app` so the MCP server starts offline.
 
 ## What it runs
 
@@ -40,9 +49,14 @@ Long values are cut before they are
 sent (4,000 characters per string), and LoopPrism cuts them again when it stores them. Events
 are stored in a SQLite file on your machine, `~/.loopprism/traces.db`.
 
-The plugin reads only its own `LOOPPRISM_*` settings (and `CODEX_HOME`, to find Codex
-sessions) from the environment, never reads credentials, never makes any other network
-request, and never changes Claude Code's permission settings.
+The hooks and slash commands read only their own `LOOPPRISM_*` settings (and `CODEX_HOME`, to find
+Codex sessions) from the environment, never read credentials, never make any network request other than
+the one above, and never change Claude Code's permission settings.
+
+The MCP server and the skill's shell fallbacks run `loopprism` locally: they read the agents' session
+files under your home folder (`~/.claude`, `~/.codex`, ...) and the LoopPrism database, answer Claude
+Code over stdio, and send nothing anywhere. The only network traffic is `npx` fetching the package from
+the npm registry. The dashboard (`open_dashboard`, `/loopprism:open`) is served on `127.0.0.1` only.
 
 ## Controls
 
