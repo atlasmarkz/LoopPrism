@@ -48,7 +48,7 @@ test('the plugin turns OpenCode hooks into LoopPrism events', async () => {
   process.env.LOOPPRISM_URL = `http://127.0.0.1:${server.address().port}`;
   try {
     const mod = await import(pathToFileURL(path.join(__dirname, '..', 'plugin', 'opencode', 'loopprism.js')).href);
-    const hooks = await mod.LoopPrismPlugin({ directory: '/work/app' });
+    const hooks = await mod.default.server({ directory: '/work/app' });
     await hooks['chat.message'](
       { sessionID: 's1', model: { providerID: 'p', modelID: 'm1' } },
       { parts: [{ type: 'text', text: 'fix the bug' }, { type: 'text', text: 'hidden', synthetic: true }] },
@@ -74,11 +74,86 @@ test('the plugin turns OpenCode hooks into LoopPrism events', async () => {
   assert.ok(got[1].duration_ms >= 0);
 });
 
+test('the plugin has the default export OpenCode 2.x requires (an id and a setup function)', async () => {
+  const mod = await import(pathToFileURL(path.join(__dirname, '..', 'plugin', 'opencode', 'loopprism.js')).href + '?shape');
+  assert.equal(mod.default.id, 'loopprism');
+  assert.equal(typeof mod.default.setup, 'function');
+  assert.equal(typeof mod.default.server, 'function');
+  // A named function export would be called as a second plugin by OpenCode 1.x: report once.
+  assert.deepEqual(Object.keys(mod), ['default']);
+});
+
+test('on OpenCode 2.x the plugin turns session hooks and events into LoopPrism events', async () => {
+  const got = [];
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', () => {
+      got.push(...JSON.parse(body).events);
+      res.end('{}');
+    });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  process.env.LOOPPRISM_URL = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const mod = await import(pathToFileURL(path.join(__dirname, '..', 'plugin', 'opencode', 'loopprism.js')).href + '?v2');
+    const hooks = {};
+    const queue = [];
+    let wake;
+    const hook = (domain) => async (name, cb) => {
+      hooks[`${domain}.${name}`] = cb;
+    };
+    const dispose = await mod.default.setup({
+      location: { directory: '/work/app' },
+      session: { hook: hook('session') },
+      tool: { hook: hook('tool') },
+      event: {
+        async *subscribe({ signal }) {
+          while (!signal.aborted) {
+            if (queue.length) yield queue.shift();
+            else await new Promise((r) => (wake = r));
+          }
+        },
+      },
+    });
+    const emit = (ev) => {
+      queue.push(ev);
+      wake?.();
+    };
+    emit({ type: 'session.step.started', data: { sessionID: 's2', model: { id: 'm2' } } });
+    await new Promise((r) => setTimeout(r, 20));
+    hooks['session.prompt']({ sessionID: 's2', prompt: { text: 'fix the bug', files: [] } });
+    hooks['tool.execute.before']({ tool: 'bash', sessionID: 's2', id: 'c2', input: { command: 'ls' } });
+    hooks['tool.execute.after']({ tool: 'bash', sessionID: 's2', id: 'c2', input: { command: 'ls' }, status: 'completed', result: { content: [{ text: 'a' }, { text: 'b' }] } });
+    hooks['tool.execute.before']({ tool: 'bash', sessionID: 's2', id: 'c3', input: {} });
+    hooks['tool.execute.after']({ tool: 'bash', sessionID: 's2', id: 'c3', input: {}, status: 'error', error: { message: 'boom' } });
+    await new Promise((r) => setTimeout(r, 50));
+    emit({ type: 'session.execution.succeeded', data: { sessionID: 's2' } });
+    emit({ type: 'session.execution.succeeded', data: { sessionID: 's2' } }); // no second stop
+    await new Promise((r) => setTimeout(r, 100));
+    dispose();
+  } finally {
+    delete process.env.LOOPPRISM_URL;
+    server.close();
+  }
+  assert.deepEqual(
+    got.map((e) => e.event).sort(),
+    ['prompt', 'stop', 'tool', 'tool_failure'],
+  );
+  const by = (event) => got.find((e) => e.event === event);
+  assert.equal(by('prompt').prompt, 'fix the bug');
+  assert.equal(by('prompt').cwd, '/work/app');
+  assert.equal(by('tool').tool_response, 'a\nb');
+  assert.equal(by('tool_failure').error, 'boom');
+  assert.equal(by('stop').model, 'm2');
+  assert.ok(got.every((e) => e.agent === 'opencode' && e.session_id === 's2'));
+});
+
 test('the plugin stays quiet and never throws when LoopPrism is not running', async () => {
   process.env.LOOPPRISM_URL = 'http://127.0.0.1:9';
   try {
     const mod = await import(pathToFileURL(path.join(__dirname, '..', 'plugin', 'opencode', 'loopprism.js')).href + '?down');
-    const hooks = await mod.LoopPrismPlugin({ directory: '/x' });
+    const hooks = await mod.default.server({ directory: '/x' });
     await hooks['chat.message']({ sessionID: 's' }, { parts: [] });
     await hooks['tool.execute.after']({ tool: 't', sessionID: 's', callID: 'c', args: {} }, { output: '' });
   } finally {
@@ -202,7 +277,7 @@ test('the plugin keeps sending after an HTTP error (#8)', async () => {
   process.env.LOOPPRISM_URL = `http://127.0.0.1:${server.address().port}`;
   try {
     const mod = await import(pathToFileURL(path.join(__dirname, '..', 'plugin', 'opencode', 'loopprism.js')).href + '?http500');
-    const hooks = await mod.LoopPrismPlugin({ directory: '/x' });
+    const hooks = await mod.default.server({ directory: '/x' });
     await hooks['chat.message']({ sessionID: 's' }, { parts: [] });
     await hooks['chat.message']({ sessionID: 's' }, { parts: [] });
   } finally {
