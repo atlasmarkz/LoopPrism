@@ -108,6 +108,10 @@ function install({ targets, url, live: liveFlag }) {
       }
       continue;
     }
+    if (agent === 'codex' && codex.pluginEnabled()) {
+      rows.push(`  ✓ ${label.padEnd(17)} already installed as a Codex plugin (\`codex plugin list\`); nothing to add`);
+      continue;
+    }
     try {
       const parts = [];
       let next = '';

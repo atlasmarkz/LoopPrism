@@ -9,7 +9,13 @@ const { usageCost } = require('../pricing');
 const U = require('../util');
 
 const AGENT = 'codex';
-const CONTEXT_PREFIXES = ['<environment_context>', '<user_instructions>', '# AGENTS.md', '<permissions', '<turn_aborted>'];
+// User-role messages Codex (CLI and desktop app) injects itself; none is something the user typed.
+const CONTEXT_PREFIXES = [
+  '<environment_context>', '<user_instructions>', '# AGENTS.md', '<permissions', '<turn_aborted>',
+  '<codex_internal_context', '<external_codex_apps_', '<in-app-browser-context', '<recommended_plugins>',
+  '<heartbeat>', '<send_user_message_',
+];
+const ROLLOUT = /\.jsonl(\.zst)?$/;
 
 function root() {
   const base = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
@@ -28,11 +34,26 @@ function discover(dir) {
     for (const e of entries) {
       const p = path.join(d, e.name);
       if (e.isDirectory()) walk(p);
-      else if (e.isFile() && e.name.startsWith('rollout-') && e.name.endsWith('.jsonl')) found.push(p);
+      else if (e.isFile() && e.name.startsWith('rollout-') && ROLLOUT.test(e.name)) found.push(p);
     }
   };
   walk(dir);
-  return found;
+  // A rollout is compressed once it is finished; if both forms exist, read the plain one.
+  const plain = new Set(found.filter((f) => !f.endsWith('.zst')));
+  return found.filter((f) => !f.endsWith('.zst') || !plain.has(f.slice(0, -'.zst'.length)));
+}
+
+/**
+ * Codex records threads it starts itself in their own rollout files: the automatic approval
+ * reviewer (`thread_source: guardian_review`, source.subagent.other = "guardian") and the agents a
+ * session spawns (source.subagent.thread_spawn, with parent_thread_id and agent_nickname). Their
+ * first prompt is boilerplate, so the session list labels them instead.
+ */
+function threadLabel(meta) {
+  const sub = U.isObj(meta.source) && U.isObj(meta.source.subagent) ? meta.source.subagent : null;
+  if (meta.thread_source === 'guardian_review' || (sub && sub.other === 'guardian')) return 'Auto-review';
+  if (sub && U.isObj(sub.thread_spawn)) return `Subagent ${U.or(sub.thread_spawn.agent_nickname, U.or(meta.agent_nickname, ''))}`.trim();
+  return '';
 }
 
 function textOf(content) {
@@ -48,7 +69,7 @@ function textOf(content) {
 function parse(file) {
   const stat = fs.statSync(file);
   const rows = U.readRows(file);
-  const base = path.basename(file, path.extname(file));
+  const base = path.basename(file).replace(ROLLOUT, '');
   const sid = base.includes('rollout-') ? base.slice(base.indexOf('rollout-') + 'rollout-'.length) : base;
   // A long session is stored in several rollout files (one per history page) that share the
   // session id; keep the pages apart.
@@ -64,6 +85,7 @@ function parse(file) {
   const modelsSeen = [];
   const systemTexts = [];
   let toolsSchema = [];
+  let label = '';
   let sawDeveloper = false;
   let pending = [];
   let lastInputTs = null;
@@ -90,6 +112,7 @@ function parse(file) {
       if (page && !String(meta.id).includes('_')) meta.id = `${meta.id}_${page[1]}`;
       meta.version = U.or(p.cli_version, meta.version);
       meta.started_at = U.or(p.timestamp, meta.started_at);
+      label = threadLabel(p);
     } else if (t === 'turn_context') {
       if (U.T(p.turn_id) && U.T(p.model)) modelOfTurn.set(p.turn_id, p.model);
       meta.project = U.or(meta.project, U.get(p, 'cwd', null));
@@ -190,7 +213,7 @@ function parse(file) {
     models: modelsSeen,
     costOf: (st) => usageCost(st.model, M.usage(st)),
     steps: ps.steps.filter((s) => !s.sidechain).length,
-    title: U.or(U.firstLineOf(firstPrompt), meta.id),
+    title: label ? `${label}: ${U.or(U.firstLineOf(firstPrompt), meta.id)}` : U.or(U.firstLineOf(firstPrompt), meta.id),
   });
   meta.subagent_steps = ps.steps.filter((s) => s.sidechain).length;
   ps.search_text = search.toString();

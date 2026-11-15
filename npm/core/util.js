@@ -3,6 +3,7 @@
 // Python truthiness, code-point string lengths, json.dumps formatting, round-half-even.
 // The parity test (npm/test/parity) compares both implementations on the same sessions.
 const fs = require('fs');
+const zlib = require('zlib');
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Uint8Array);
 
@@ -192,7 +193,16 @@ function msBetween(a, b) {
 // ------------------------------------------------------------------ files
 /** Lines of a JSONL file as objects (bad lines skipped), without one huge string. */
 function readRows(path) {
-  const buf = fs.readFileSync(path);
+  let buf = fs.readFileSync(path);
+  // Codex compresses finished rollouts to `*.jsonl.zst` (zlib has zstd from Node 22.15).
+  if (path.endsWith('.zst')) {
+    if (typeof zlib.zstdDecompressSync !== 'function') return [];
+    try {
+      buf = zlib.zstdDecompressSync(buf);
+    } catch {
+      return []; // a damaged file hides only itself
+    }
+  }
   const rows = [];
   let start = 0;
   const push = (end) => {
