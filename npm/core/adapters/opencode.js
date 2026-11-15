@@ -1,7 +1,11 @@
 'use strict';
 // OpenCode: sessions in ~/.local/share/opencode/opencode.db (SQLite) (port of sessions/opencode.py).
-// A session is not a file, so it is addressed as "<db path>#<session id>". Each step-finish part
-// carries the token usage of one model call; reasoning tokens are billed as output.
+// A session is not a file, so it is addressed as "<db path>#<session id>". Two layouts exist:
+//   - OpenCode 1.x: tables session / message / part; each step-finish part carries the token usage
+//     of one model call.
+//   - OpenCode 2.x: tables session_v2 / session_message; each assistant message is one model call
+//     and carries its own tokens and cost, its content is a list of reasoning / text / tool items.
+// Reasoning tokens are billed as output in both.
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -24,20 +28,31 @@ function splitPath(p) {
   return [p.slice(0, i), p.slice(i + 1)];
 }
 
-/** {"<db>#<session id>": [mtime seconds, size]} for every top-level session. */
+const V1_DISCOVER =
+  'SELECT s.id, s.time_updated, ' +
+  'COALESCE((SELECT MAX(m.time_updated) FROM message m WHERE m.session_id = s.id), 0) AS mu, ' +
+  '(SELECT COUNT(*) FROM part p WHERE p.session_id = s.id) AS parts ' +
+  'FROM session s WHERE s.parent_id IS NULL';
+const V2_DISCOVER =
+  'SELECT s.id, s.time_updated, ' +
+  'COALESCE((SELECT MAX(m.time_updated) FROM session_message m WHERE m.session_id = s.id), 0) AS mu, ' +
+  '(SELECT COUNT(*) FROM session_message m WHERE m.session_id = s.id) AS parts ' +
+  'FROM session_v2 s WHERE s.parent_id IS NULL';
+
+function hasTable(c, name) {
+  return !!c.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name);
+}
+
+/** {"<db>#<session id>": [mtime seconds, size]} for every top-level session of either layout. */
 function discover(db) {
   const out = new Map();
   if (!isFile(db)) return out;
-  let rows;
+  const rows = [];
   try {
     const c = openReadOnly(db);
     try {
-      rows = c.prepare(
-        'SELECT s.id, s.time_updated, ' +
-          'COALESCE((SELECT MAX(m.time_updated) FROM message m WHERE m.session_id = s.id), 0) AS mu, ' +
-          '(SELECT COUNT(*) FROM part p WHERE p.session_id = s.id) AS parts ' +
-          'FROM session s WHERE s.parent_id IS NULL',
-      ).all();
+      if (hasTable(c, 'session')) rows.push(...c.prepare(V1_DISCOVER).all());
+      if (hasTable(c, 'session_v2')) rows.push(...c.prepare(V2_DISCOVER).all());
     } finally {
       c.close();
     }
@@ -81,7 +96,9 @@ function parse(p) {
   let messages;
   const parts = new Map();
   try {
-    srow = c.prepare('SELECT * FROM session WHERE id = ?').get(sid);
+    srow = hasTable(c, 'session') ? c.prepare('SELECT * FROM session WHERE id = ?').get(sid) : undefined;
+    // a database upgraded from 1.x holds both layouts; the id says which one this session is in
+    if (!srow && hasTable(c, 'session_v2')) return parseV2(c, sid, ps, meta);
     messages = c.prepare('SELECT id, time_created, data FROM message WHERE session_id = ? ORDER BY time_created, id').all(sid);
     for (const row of c.prepare('SELECT id, message_id, time_created, data FROM part WHERE session_id = ? ORDER BY time_created, id').iterate(sid)) {
       if (!parts.has(row.message_id)) parts.set(row.message_id, []);
@@ -193,6 +210,123 @@ function parse(p) {
           if (!modelsSeen.includes(model)) modelsSeen.push(model);
         }
       }
+    }
+  }
+
+  M.finish(ps, { turn, models: modelsSeen });
+  meta.ended_at = U.or(U.isoOfMs(lastMs), meta.ended_at);
+  if (!meta.title || meta.title.startsWith('New session')) {
+    meta.title = U.cpSlice(U.or(U.firstLineOf(firstPrompt), U.or(meta.title, sid)), 200);
+  }
+  ps.search_text = search.toString();
+  return ps;
+}
+
+/** Text of a 2.x tool result: its content items, concatenated. */
+function toolTextV2(state) {
+  if (state.status === 'error') return U.pyStr(U.or(U.isObj(state.error) ? state.error.message : state.error, ''));
+  const items = Array.isArray(state.content) ? state.content : [];
+  return items.map((i) => (U.isObj(i) && typeof i.text === 'string' ? i.text : '')).filter(Boolean).join('\n');
+}
+
+/** An OpenCode 2.x session (tables session_v2 / session_message), read on the open connection `c`. */
+function parseV2(c, sid, ps, meta) {
+  const srow = c.prepare('SELECT * FROM session_v2 WHERE id = ?').get(sid);
+  const rows = c.prepare('SELECT id, type, time_created, data FROM session_message WHERE session_id = ? ORDER BY seq, time_created, id').all(sid);
+  if (srow) {
+    meta.project = srow.directory || null;
+    meta.title = srow.title || '';
+    meta.version = srow.version ?? null;
+    meta.started_at = U.isoOfMs(srow.time_created);
+    meta.ended_at = U.isoOfMs(srow.time_updated);
+  }
+
+  let turn = 0;
+  let firstPrompt = '';
+  const modelsSeen = [];
+  const search = new M.SearchText();
+  let lastInputMs = null;
+  let lastMs = null;
+  const add = (kind, ms, text = '', kw = {}) => {
+    const ev = M.event({ idx: ps.events.length, kind, ts: U.isoOfMs(ms), turn, text: M.clip(text), ...kw });
+    ps.events.push(ev);
+    return ev;
+  };
+
+  for (const row of rows) {
+    const d = j(row.data);
+    const ms = U.or(U.or(d.time, {}).created, row.time_created);
+    if (row.type === 'user') {
+      lastMs = ms;
+      const text = typeof d.text === 'string' ? d.text : '';
+      if (U.strip(text)) {
+        turn += 1;
+        firstPrompt = U.or(firstPrompt, text);
+        search.add(text);
+        add(K.USER, ms, text);
+      }
+      lastInputMs = ms;
+    } else if (row.type === 'synthetic') {
+      if (typeof d.text === 'string' && U.strip(d.text)) add(K.CONTEXT, ms, d.text, { label: 'synthetic' });
+    } else if (row.type === 'compaction') {
+      // a failed compaction left the context as it was
+      if (d.status === 'completed') add(K.COMPACTION, ms, typeof d.summary === 'string' ? d.summary : '', { label: 'compaction' });
+    } else if (row.type === 'assistant') {
+      const model = U.or(U.or(d.model, {}).id, 'unknown');
+      const endMs = U.or(U.or(d.time, {}).completed, ms);
+      lastMs = endMs;
+      const pending = [];
+      let toolMs = 0;
+      for (const item of Array.isArray(d.content) ? d.content : []) {
+        if (!U.isObj(item)) continue;
+        const it = U.or(item.time, {});
+        const at = U.or(it.created, ms);
+        if (item.type === 'reasoning') pending.push(add(K.THINKING, at, U.pyStr(U.or(item.text, ''))).idx);
+        else if (item.type === 'text') {
+          const text = U.pyStr(U.or(item.text, ''));
+          if (U.strip(text)) {
+            search.add(text);
+            pending.push(add(K.ASSISTANT, at, text).idx);
+          }
+        } else if (item.type === 'tool') {
+          const state = U.isObj(item.state) ? item.state : {};
+          pending.push(add(K.TOOL_CALL, at, '', { tool_name: U.get(item, 'name', null), tool_input: U.get(state, 'input', null), tool_use_id: U.get(item, 'id', null) }).idx);
+          if (state.status === 'completed' || state.status === 'error') {
+            add(K.TOOL_RESULT, U.or(it.completed, at), toolTextV2(state), { tool_use_id: U.get(item, 'id', null), is_error: state.status === 'error' });
+            const took = U.msBetween(U.or(it.ran, at), it.completed);
+            if (took !== null) toolMs = Math.max(toolMs, took);
+          }
+        }
+      }
+      if (!U.isObj(d.tokens)) continue; // a model call that never reported usage is not a step
+      const tok = d.tokens;
+      const cache = U.or(tok.cache, {});
+      const step = M.step({
+        index: ps.steps.length,
+        turn,
+        model,
+        ts: U.isoOfMs(lastInputMs),
+        end_ts: U.isoOfMs(endMs),
+        msg_id: row.id,
+        input_tokens: U.toInt(U.or(tok.input, 0)),
+        output_tokens: U.toInt(U.or(tok.output, 0)) + U.toInt(U.or(tok.reasoning, 0)),
+        cache_read_tokens: U.toInt(U.or(cache.read, 0)),
+        cache_write_tokens: U.toInt(U.or(cache.write, 0)),
+        request_ts: U.isoOfMs(lastInputMs),
+        first_event: pending.length ? pending[0] : ps.events.length,
+      });
+      step.model_ms = U.msBetween(lastInputMs, endMs);
+      const ours = usageCost(model, M.usage(step));
+      // our price table first (the same models in every agent); else what OpenCode charged
+      step.cost_usd = ours !== null ? ours : typeof d.cost === 'number' ? d.cost : null;
+      if (toolMs) step.tools_ms = toolMs;
+      for (const idx of pending) {
+        ps.events[idx].step = step.index;
+        ps.events[idx].model = model;
+      }
+      ps.steps.push(step);
+      lastInputMs = endMs;
+      if (!modelsSeen.includes(model)) modelsSeen.push(model);
     }
   }
 
