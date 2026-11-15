@@ -301,11 +301,34 @@ test("client: a stuck worker times out and is replaced", async () => {
 
 // ---------------------------------------------------------------- package
 
-test("package.json exposes ./tui and the file exists", () => {
+test("package.json exposes the compiled ./tui and ships it without the JSX source", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(here, "..", "package.json"), "utf8"));
-  assert.equal(pkg.exports["./tui"], "./src/tui.tsx");
-  assert.ok(fs.existsSync(path.join(here, "..", "src", "tui.tsx")));
-  assert.ok(pkg.files.includes("src"));
+  assert.equal(pkg.exports["./tui"], "./src/tui.js");
+  assert.ok(fs.existsSync(path.join(here, "..", "src", "tui.js")));
+  assert.ok(pkg.files.includes("src") && pkg.files.includes("!src/tui.tsx"));
+  // the OpenTUI packages are provided by OpenCode, so they must not be installed with the plugin
+  for (const name of ["@opentui/core", "@opentui/solid", "solid-js"]) assert.equal(pkg.peerDependenciesMeta[name].optional, true);
+  assert.equal(pkg.dependencies["solid-js"], undefined);
+});
+
+test("src/tui.js is compiled (no JSX) and imports only what OpenCode provides", () => {
+  const code = fs.readFileSync(path.join(here, "..", "src", "tui.js"), "utf8");
+  assert.ok(!/<box|<text|<For/.test(code), "no JSX left");
+  const bare = [...code.matchAll(/from "([^".][^"]*)"/g)].map((m) => m[1]);
+  assert.deepEqual([...new Set(bare)].sort(), ["@opentui/solid", "solid-js"]);
+  assert.ok(code.includes('"./tui/controller.js"'));
+  assert.match(code, /id: "loopprism\.sidebar"/);
+  assert.match(code, /append: "sidebar\.content"/);
+});
+
+test("src/tui.js is up to date with src/tui.tsx", async (t) => {
+  let build;
+  try {
+    build = (await import("node:module")).createRequire(import.meta.url)("../scripts/build-tui.cjs");
+  } catch {
+    return t.skip("build tools (npm install) not installed");
+  }
+  assert.equal(fs.readFileSync(build.out, "utf8").replace(/\r\n/g, "\n"), build.compile().replace(/\r\n/g, "\n"), "run `node scripts/build-tui.cjs`");
 });
 
 // ---------------------------------------------------------------- real worker + real Inspector

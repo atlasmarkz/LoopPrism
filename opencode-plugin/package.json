@@ -27,10 +27,11 @@
   "type": "module",
   "exports": {
     ".": "./src/index.js",
-    "./tui": "./src/tui.tsx"
+    "./tui": "./src/tui.js"
   },
   "files": [
     "src",
+    "!src/tui.tsx",
     "README.md",
     "LICENSE"
   ],

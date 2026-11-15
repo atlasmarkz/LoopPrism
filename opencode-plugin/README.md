@@ -28,6 +28,7 @@ Restart OpenCode. (OpenCode 1.x uses `"plugin"` instead of `"plugins"`; see belo
 | Live runs | Reports prompts, tool calls and the end of each turn to the LoopPrism API (`/api/ingest/events`). Needs LoopPrism running (the desktop app, or `lpa`). When it is not running, nothing is sent and OpenCode is not slowed down. |
 | MCP server | Registers `loopprism` (`lpa mcp`, from the `loopprism` npm package this plugin depends on) through the plugin API. Nothing is written to `opencode.json`. |
 | Skill | Registers the `loopprism` skill. |
+| TUI sidebar card (OpenCode 2.x) | A compact "LoopPrism" card in the TUI sidebar: cost, context fill, cache hit rate, and what LoopPrism found (repeated calls, error streaks, compactions). Read locally from OpenCode's session database; needs no running LoopPrism. Refreshes when a turn ends. See `docs/opencode-sidebar-prototype.md`. |
 
 An MCP server or skill you already have under the name `loopprism` is left alone.
 
