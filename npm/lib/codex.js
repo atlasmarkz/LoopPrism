@@ -7,12 +7,15 @@ const { packageRoot, stableDirs, codexHome } = require('./paths');
 const { atomicWrite, backupOnce } = require('./fsutil');
 
 const MARKER = path.join('.loopprism', 'hooks', 'hook.js');
+// `message` is the hook's `statusMessage`: the only human-readable label Codex has for a command
+// hook (there is no name field), shown where the hook is listed and while it runs. Without it Codex
+// can only number the hooks.
 const WANTED = [
-  { event: 'SessionStart', async: true },
-  { event: 'UserPromptSubmit', async: true },
-  { event: 'PostToolUse', async: true },
-  { event: 'Stop', async: true },
-  { event: 'SessionEnd', async: false, timeout: 2 },
+  { event: 'SessionStart', async: true, message: 'LoopPrism: session started' },
+  { event: 'UserPromptSubmit', async: true, message: 'LoopPrism: recording prompt' },
+  { event: 'PostToolUse', async: true, message: 'LoopPrism: recording tool call' },
+  { event: 'Stop', async: true, message: 'LoopPrism: recording end of turn' },
+  { event: 'SessionEnd', async: false, timeout: 2, message: 'LoopPrism: session ended' },
 ];
 
 const isOurs = (handler) =>
@@ -43,7 +46,7 @@ function stripOurs(config) {
 function addOurs(config, hookJs) {
   const command = `node "${hookJs}" --agent codex`;
   for (const w of WANTED) {
-    const handler = { type: 'command', command };
+    const handler = { type: 'command', command, statusMessage: w.message };
     if (w.async) handler.async = true;
     if (w.timeout) handler.timeout = w.timeout;
     (config.hooks[w.event] ||= []).push({ hooks: [handler] });
