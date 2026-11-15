@@ -1,7 +1,7 @@
 {
   "name": "opencode-loopprism",
-  "version": "0.1.0",
-  "description": "LoopPrism for OpenCode: live runs, cost, context and loops for your OpenCode sessions, plus the LoopPrism MCP server and skill. Reports to a local LoopPrism only; nothing leaves your machine.",
+  "version": "0.2.0",
+  "description": "LoopPrism for OpenCode: live runs, cost, context and loops for your OpenCode sessions, a LoopPrism card in the TUI sidebar, plus the LoopPrism MCP server and skill. Reads and reports locally only; nothing leaves your machine.",
   "license": "MIT",
   "author": "Mark Zhang",
   "homepage": "https://github.com/atlasmarkz/LoopPrism",
@@ -20,11 +20,14 @@
     "cost",
     "tokens",
     "mcp",
-    "loopprism"
+    "loopprism",
+    "opencode-tui",
+    "sidebar"
   ],
   "type": "module",
   "exports": {
-    ".": "./src/index.js"
+    ".": "./src/index.js",
+    "./tui": "./src/tui.tsx"
   },
   "files": [
     "src",
@@ -35,6 +38,25 @@
     "loopprism": "^0.2.0"
   },
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test"
+  },
+  "peerDependencies": {
+    "@opentui/core": ">=0.8.4",
+    "@opentui/solid": ">=0.8.4",
+    "solid-js": ">=1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@opentui/core": {
+      "optional": true
+    },
+    "@opentui/solid": {
+      "optional": true
+    },
+    "solid-js": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=22.15"
   }
 }
