@@ -103,7 +103,7 @@ WorkBuddy in `~/.workbuddy/settings.json`, OpenCode a plugin file in `~/.config/
 - **DeepSeek Harness:** `lpa install dsh` only writes `~/.loopprism/dsh-hooks.json`; it never edits DSH's own profile. In DSH Desktop install the plugin `dsh-hooks-claude-code`, set its `configPath` to that file, and restart. The bridge supports session start, prompt, tool and stop events (no tool failures).
 - **Cursor:** `lpa install cursor` adds hooks to `~/.cursor/hooks.json` (Cursor reloads it by itself).
 - **Gemini CLI:** `lpa install gemini` adds hooks to the `hooks` key of `~/.gemini/settings.json` (`$GEMINI_CLI_HOME` moves the folder); restart Gemini CLI afterwards.
-- **OpenCode:** restart it after `lpa install` so it loads the plugin. Uninstall removes only the file LoopPrism wrote.
+- **OpenCode:** restart it after `lpa install` so it loads the plugin. The plugin file works with OpenCode 1.x and 2.x; LoopPrism 0.2.0 and earlier installed a file that OpenCode 2.x refused to load, so on 2.x run `lpa install opencode` again to replace it. Uninstall removes only the file LoopPrism wrote.
 - **WorkBuddy:** restart it after `lpa install` so it reads the hooks. They run `node`, so Node.js must be on the PATH WorkBuddy uses.
 - **Claude Code without npm:** `/plugin marketplace add atlasmarkz/LoopPrism`, then `/plugin install loopprism@loopprism`.
 - **It never slows your agent.** The hook gives up after one second (`LOOPPRISM_HOOK_TIMEOUT_MS` changes that) and always exits 0. When LoopPrism is not reachable, or times out twice in a row, the hooks skip sending for ten seconds; a single slow answer does not pause recording. Set `LOOPPRISM_DEBUG=1` to see why an event was not sent.
