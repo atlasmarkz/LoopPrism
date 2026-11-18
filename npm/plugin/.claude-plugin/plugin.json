@@ -8,6 +8,10 @@
   },
   "homepage": "https://github.com/atlasmarkz/LoopPrism",
   "repository": "https://github.com/atlasmarkz/LoopPrism",
+  "icon": "./assets/icon.png",
+  "documentationUrl": "https://github.com/atlasmarkz/LoopPrism/blob/main/npm/plugin/README.md",
+  "supportUrl": "https://github.com/atlasmarkz/LoopPrism/issues",
+  "privacyPolicyUrl": "https://github.com/atlasmarkz/LoopPrism/blob/main/npm/plugin/README.md#what-is-sent-and-where",
   "license": "MIT",
   "keywords": [
     "cost",

@@ -2,7 +2,7 @@
   "mcpServers": {
     "loopprism": {
       "command": "npx",
-      "args": ["-y", "loopprism", "mcp"]
+      "args": ["-y", "loopprism@0.2.0", "mcp"]
     }
   }
 }
