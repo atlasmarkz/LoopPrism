@@ -1,0 +1,53 @@
+{
+  "name": "dsh-loopprism",
+  "version": "0.1.0",
+  "description": "LoopPrism for DeepSeek Harness: streams each session step to the LoopPrism app and gives the agent LoopPrism's session-review tools.",
+  "license": "MIT",
+  "author": "Mark Zhang",
+  "homepage": "https://github.com/atlasmarkz/LoopPrism/tree/main/plugins/dsh-loopprism",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/atlasmarkz/LoopPrism.git",
+    "directory": "plugins/dsh-loopprism"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "loopprism",
+    "observability",
+    "cost",
+    "agent"
+  ],
+  "type": "module",
+  "main": "plugin.js",
+  "exports": {
+    ".": "./plugin.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "plugin.js",
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "loopprism": "^0.2.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.2.2-rc.1 <0.3.0-0"
+  },
+  "engines": {
+    "node": ">=22.15"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}
